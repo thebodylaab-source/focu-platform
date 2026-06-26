@@ -87,6 +87,19 @@ export const recipes = sqliteTable("recipes", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Shopping list items (per user)
+export const shoppingListItems = sqliteTable("shopping_list_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("outros"),
+  tags: text("tags").notNull().default("[]"), // JSON array: sem-gluten, sem-lactose, vegan, vegetariano
+  supermarkets: text("supermarkets").notNull().default("[]"), // JSON array of supermarket ids
+  quantity: integer("quantity").notNull().default(1),
+  checked: integer("checked", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // User membership status
 export const memberships = sqliteTable("memberships", {
   id: integer("id").primaryKey({ autoIncrement: true }),

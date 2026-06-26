@@ -6,6 +6,7 @@ import { videosRoute } from "./routes/videos";
 import { documentsRoute } from "./routes/documents";
 import { nutritionRoute } from "./routes/nutrition";
 import { recipesRoute } from "./routes/recipes";
+import { shoppingRoute } from "./routes/shopping";
 import { membershipRoute } from "./routes/membership";
 import { stripeWebhookRoute } from "./routes/stripe-webhook";
 import { adminRoute } from "./routes/admin";
@@ -21,6 +22,7 @@ const apiApp = new Hono()
   .route("/documents", documentsRoute)
   .route("/nutrition", nutritionRoute)
   .route("/recipes", recipesRoute)
+  .route("/shopping", shoppingRoute)
   .route("/membership", membershipRoute)
   .route("/admin", adminRoute);
 

@@ -2,18 +2,24 @@ import { useState } from "react";
 import CalorieCounter from "../components/nutrition/calorie-counter";
 import FoodTracker from "../components/nutrition/food-tracker";
 import Recipes from "../components/nutrition/recipes";
-import { Flame, ListChecks, ChefHat } from "lucide-react";
+import ShoppingList from "../components/nutrition/shopping-list";
+import { Flame, ListChecks, ChefHat, ShoppingCart } from "lucide-react";
 import { useLocation } from "wouter";
 
 const TABS = [
   { id: "calorias", label: "Contador", icon: Flame },
   { id: "rastreador", label: "Rastreador", icon: ListChecks },
   { id: "receitas", label: "Receitas", icon: ChefHat },
+  { id: "compras", label: "Lista de Compras", icon: ShoppingCart },
 ];
 
 export default function NutricaoPage() {
   const [location] = useLocation();
-  const defaultTab = location.includes("receitas") ? "receitas" : "calorias";
+  const defaultTab = location.includes("receitas")
+    ? "receitas"
+    : location.includes("compras")
+      ? "compras"
+      : "calorias";
   const [tab, setTab] = useState(defaultTab);
 
   return (
@@ -41,6 +47,7 @@ export default function NutricaoPage() {
         {tab === "calorias" && <CalorieCounter />}
         {tab === "rastreador" && <FoodTracker />}
         {tab === "receitas" && <Recipes />}
+        {tab === "compras" && <ShoppingList />}
       </div>
     </div>
   );
