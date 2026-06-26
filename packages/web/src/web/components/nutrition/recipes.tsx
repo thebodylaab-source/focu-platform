@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useState } from "react";
-import { Clock, Users, Flame, Plus, X, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, Users, Flame, Plus, X, Search, ChevronDown, ChevronUp, Sparkles, Wand2 } from "lucide-react";
 
 const FILTERS = [
   { id: "sem-gluten", label: "Sem Glúten", emoji: "🌾" },
@@ -11,6 +11,37 @@ const FILTERS = [
   { id: "sem-acucar", label: "Sem Açúcar", emoji: "🍬" },
   { id: "alta-proteina", label: "Alta Proteína", emoji: "💪" },
 ];
+
+const SPECIAL_CONDITIONS = [
+  { id: "celiac", label: "Celíaco", emoji: "🚫🌾" },
+  { id: "endometriose", label: "Endometriose", emoji: "🎗️" },
+];
+
+const ENDOMETRIOSIS_EXCLUDED_KEYWORDS = [
+  "carne vermelha", "vaca", "porco", "bacon", "salsicha", "açúcar refinado",
+  "pão branco", "álcool", "vinho", "cerveja", "fritos", "margarina", "refrigerante",
+];
+
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+function getIngredientsArray(r: any): string[] {
+  return typeof r.ingredients === "string" ? JSON.parse(r.ingredients) : r.ingredients;
+}
+
+function countIngredientMatches(recipe: any, haveIngredients: string[]): number {
+  const ingredientText = normalize(getIngredientsArray(recipe).join(" "));
+  return haveIngredients.filter((have) => ingredientText.includes(normalize(have))).length;
+}
+
+function violatesEndometriosisFilter(recipe: any): boolean {
+  const text = normalize(getIngredientsArray(recipe).join(" ") + " " + (recipe.title ?? ""));
+  return ENDOMETRIOSIS_EXCLUDED_KEYWORDS.some((kw) => text.includes(normalize(kw)));
+}
 
 // Default recipes
 const DEFAULT_RECIPES = [
@@ -58,22 +89,38 @@ const DEFAULT_RECIPES = [
   },
 ];
 
-function RecipeCard({ recipe }: { recipe: any }) {
-  const [expanded, setExpanded] = useState(false);
+function RecipeCard({ recipe, matchCount, isAiPreview, onSave, saving }: {
+  recipe: any;
+  matchCount?: number;
+  isAiPreview?: boolean;
+  onSave?: () => void;
+  saving?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(Boolean(isAiPreview));
   const tags = typeof recipe.tags === "string" ? JSON.parse(recipe.tags) : recipe.tags;
-  const ingredients = typeof recipe.ingredients === "string" ? JSON.parse(recipe.ingredients) : recipe.ingredients;
+  const ingredients = getIngredientsArray(recipe);
   const steps = typeof recipe.steps === "string" ? JSON.parse(recipe.steps) : recipe.steps;
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--white)" }}>
-      {/* Card color header */}
-      <div className="h-3" style={{ background: "var(--orange)" }} />
+      <div className="h-3" style={{ background: isAiPreview ? "var(--green)" : "var(--orange)" }} />
       <div className="p-5">
         <div className="flex items-start justify-between gap-2 mb-3">
           <h3 className="font-black text-base leading-tight" style={{ color: "var(--black)" }}>{recipe.title}</h3>
           <span className="text-2xl shrink-0">{tags.includes("vegan") ? "🌱" : tags.includes("alta-proteina") ? "💪" : "🍽️"}</span>
         </div>
         {recipe.description && <p className="text-xs mb-3" style={{ color: "var(--gray)" }}>{recipe.description}</p>}
+
+        {isAiPreview && (
+          <div className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full mb-3 w-fit" style={{ background: "#EAF3EC", color: "var(--green)" }}>
+            <Sparkles size={12} /> Receita criada por IA
+          </div>
+        )}
+        {!isAiPreview && matchCount !== undefined && matchCount > 0 && (
+          <div className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full mb-3 w-fit" style={{ background: "var(--peach)", color: "var(--orange)" }}>
+            {matchCount} ingrediente{matchCount !== 1 ? "s" : ""} que tens
+          </div>
+        )}
 
         {/* Meta */}
         <div className="flex gap-3 mb-3">
@@ -118,10 +165,12 @@ function RecipeCard({ recipe }: { recipe: any }) {
         </div>
 
         {/* Expand */}
-        <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-xs font-semibold cursor-pointer" style={{ color: "var(--orange)" }}>
-          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          {expanded ? "Ocultar detalhes" : "Ver receita completa"}
-        </button>
+        {!isAiPreview && (
+          <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-xs font-semibold cursor-pointer" style={{ color: "var(--orange)" }}>
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {expanded ? "Ocultar detalhes" : "Ver receita completa"}
+          </button>
+        )}
 
         {expanded && (
           <div className="mt-4 space-y-4">
@@ -146,6 +195,13 @@ function RecipeCard({ recipe }: { recipe: any }) {
                 ))}
               </ol>
             </div>
+            {isAiPreview && onSave && (
+              <button onClick={onSave} disabled={saving}
+                className="w-full py-3 rounded-xl font-bold text-sm text-white cursor-pointer flex items-center justify-center gap-2"
+                style={{ background: "var(--green)" }}>
+                {saving ? "A guardar..." : "Guardar nas minhas receitas"}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -157,11 +213,18 @@ export default function Recipes() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [activeSpecial, setActiveSpecial] = useState<string[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     title: "", description: "", calories: "", protein: "", carbs: "", fat: "",
     prepTime: "", cookTime: "", servings: 2, ingredients: "", steps: "", tags: [] as string[], category: "principal",
   });
+
+  // Ingredient-based search ("O que posso cozinhar?")
+  const [ingredientInput, setIngredientInput] = useState("");
+  const [haveIngredients, setHaveIngredients] = useState<string[]>([]);
+  const [aiRecipe, setAiRecipe] = useState<any | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const { data } = useQuery({ queryKey: ["recipes"], queryFn: async () => (await api.recipes.$get()).json() });
   const dbRecipes = (data as any)?.recipes ?? [];
@@ -169,22 +232,144 @@ export default function Recipes() {
 
   const addMutation = useMutation({
     mutationFn: async (r: any) => (await api.recipes.$post({ json: r })).json(),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); setShowAdd(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); setShowAdd(false); setAiRecipe(null); },
+  });
+
+  const aiGenerateMutation = useMutation({
+    mutationFn: async () => {
+      const effectiveTags = [...activeFilters, ...(activeSpecial.includes("celiac") ? ["sem-gluten"] : [])];
+      const res = await api.recipes["ai-generate"].$post({
+        json: {
+          ingredients: haveIngredients,
+          tags: effectiveTags,
+          avoidInflammatory: activeSpecial.includes("endometriose"),
+        },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Erro a gerar receita.");
+      return json.recipe;
+    },
+    onSuccess: (recipe) => { setAiRecipe(recipe); setAiError(null); },
+    onError: (err: any) => setAiError(err.message),
   });
 
   const toggleFilter = (id: string) => {
     setActiveFilters(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   };
+  const toggleSpecial = (id: string) => {
+    setActiveSpecial(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
+  };
 
-  const filtered = allRecipes.filter(r => {
+  function addHaveIngredient() {
+    const value = ingredientInput.trim();
+    if (!value || haveIngredients.some(i => normalize(i) === normalize(value))) return;
+    setHaveIngredients([...haveIngredients, value]);
+    setIngredientInput("");
+    setAiRecipe(null);
+  }
+
+  const ingredientMode = haveIngredients.length > 0;
+  const wantsCeliac = activeSpecial.includes("celiac");
+  const wantsEndometriose = activeSpecial.includes("endometriose");
+
+  let filtered = allRecipes.filter(r => {
     const tags = typeof r.tags === "string" ? JSON.parse(r.tags) : r.tags;
     const matchSearch = !search || r.title.toLowerCase().includes(search.toLowerCase());
-    const matchFilters = activeFilters.length === 0 || activeFilters.every(f => tags.includes(f));
-    return matchSearch && matchFilters;
+    const matchFilters = activeFilters.length === 0 || activeFilters.every((f: string) => tags.includes(f));
+    const matchCeliac = !wantsCeliac || tags.includes("sem-gluten");
+    const matchEndometriose = !wantsEndometriose || !violatesEndometriosisFilter(r);
+    return matchSearch && matchFilters && matchCeliac && matchEndometriose;
   });
+
+  let matchCounts: Record<number, number> = {};
+  if (ingredientMode) {
+    filtered = filtered
+      .map(r => { matchCounts[r.id] = countIngredientMatches(r, haveIngredients); return r; })
+      .filter(r => matchCounts[r.id] > 0)
+      .sort((a, b) => matchCounts[b.id] - matchCounts[a.id]);
+  }
 
   return (
     <div className="space-y-5">
+      {/* "O que posso cozinhar?" — pesquisa por ingredientes */}
+      <div className="rounded-2xl p-4" style={{ background: "var(--peach)" }}>
+        <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: "var(--orange)" }}>
+          🥗 O que posso cozinhar?
+        </p>
+        <div className="flex gap-2 mb-2">
+          <input
+            type="text"
+            value={ingredientInput}
+            onChange={e => setIngredientInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addHaveIngredient())}
+            placeholder="ex: frango, brócolos, arroz"
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm border outline-none"
+            style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+          />
+          <button onClick={addHaveIngredient}
+            className="px-4 py-2.5 rounded-xl font-semibold text-sm text-white cursor-pointer"
+            style={{ background: "var(--orange)" }}>
+            Adicionar
+          </button>
+        </div>
+        {haveIngredients.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {haveIngredients.map(ing => (
+              <span key={ing} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full" style={{ background: "var(--white)", color: "var(--black)" }}>
+                {ing}
+                <button onClick={() => { setHaveIngredients(haveIngredients.filter(i => i !== ing)); setAiRecipe(null); }} className="cursor-pointer" style={{ color: "var(--gray)" }}>
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Condições especiais */}
+        <div className="flex gap-2 flex-wrap">
+          {SPECIAL_CONDITIONS.map(s => (
+            <button key={s.id} onClick={() => toggleSpecial(s.id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer"
+              style={activeSpecial.includes(s.id)
+                ? { background: "var(--black)", color: "white" }
+                : { background: "var(--white)", color: "var(--gray)", border: "1px solid var(--gray-lt)" }}>
+              <span>{s.emoji}</span>{s.label}
+            </button>
+          ))}
+        </div>
+
+        {ingredientMode && (
+          <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+            <p className="text-xs mb-2" style={{ color: "var(--gray)" }}>
+              {filtered.length === 0
+                ? "Não encontrámos receitas com esses ingredientes."
+                : `${filtered.length} receita${filtered.length !== 1 ? "s" : ""} que dá para fazer.`}
+            </p>
+            <button onClick={() => aiGenerateMutation.mutate()} disabled={aiGenerateMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm text-white cursor-pointer"
+              style={{ background: "var(--green)" }}>
+              <Wand2 size={16} />
+              {aiGenerateMutation.isPending ? "A criar receita..." : "✨ Criar receita à medida com IA"}
+            </button>
+            {aiError && <p className="text-xs mt-2" style={{ color: "#C0392B" }}>{aiError}</p>}
+          </div>
+        )}
+      </div>
+
+      {aiRecipe && (
+        <RecipeCard
+          recipe={aiRecipe}
+          isAiPreview
+          saving={addMutation.isPending}
+          onSave={() => addMutation.mutate({
+            ...aiRecipe,
+            ingredients: JSON.stringify(aiRecipe.ingredients),
+            steps: JSON.stringify(aiRecipe.steps),
+            tags: JSON.stringify(aiRecipe.tags),
+          })}
+        />
+      )}
+
       {/* Search + add */}
       <div className="flex gap-3">
         <div className="relative flex-1">
@@ -214,11 +399,15 @@ export default function Recipes() {
       </div>
 
       {/* Count */}
-      <p className="text-xs" style={{ color: "var(--gray)" }}>{filtered.length} receita{filtered.length !== 1 ? "s" : ""}</p>
+      {!ingredientMode && (
+        <p className="text-xs" style={{ color: "var(--gray)" }}>{filtered.length} receita{filtered.length !== 1 ? "s" : ""}</p>
+      )}
 
       {/* Recipe grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {filtered.map((r: any) => <RecipeCard key={r.id} recipe={r} />)}
+        {filtered.map((r: any) => (
+          <RecipeCard key={r.id} recipe={r} matchCount={ingredientMode ? matchCounts[r.id] : undefined} />
+        ))}
       </div>
 
       {/* Add modal */}

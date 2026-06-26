@@ -3,6 +3,7 @@ import { db } from "../database";
 import * as schema from "../database/schema";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
+import { generateRecipeFromIngredients } from "../lib/ai-recipes";
 
 export const recipesRoute = new Hono()
   .get("/", requireAuth, async (c) => {
@@ -13,6 +14,31 @@ export const recipesRoute = new Hono()
     const body = await c.req.json();
     const [recipe] = await db.insert(schema.recipes).values(body).returning();
     return c.json({ recipe }, 201);
+  })
+  .post("/ai-generate", requireAuth, async (c) => {
+    const body = await c.req.json<{
+      ingredients: string[];
+      tags?: string[];
+      maxCalories?: number;
+      avoidInflammatory?: boolean;
+    }>();
+    if (!body.ingredients || body.ingredients.length === 0) {
+      return c.json({ error: "Indica pelo menos um ingrediente." }, 400);
+    }
+    try {
+      const recipe = await generateRecipeFromIngredients(
+        body.ingredients,
+        body.tags ?? [],
+        body.maxCalories,
+        body.avoidInflammatory
+      );
+      return c.json({ recipe }, 200);
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : "Erro a gerar receita." },
+        502
+      );
+    }
   })
   .delete("/:id", requireAuth, async (c) => {
     const id = parseInt(c.req.param("id"));
