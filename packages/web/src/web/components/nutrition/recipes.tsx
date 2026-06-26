@@ -33,6 +33,29 @@ function getIngredientsArray(r: any): string[] {
   return typeof r.ingredients === "string" ? JSON.parse(r.ingredients) : r.ingredients;
 }
 
+// Escala as quantidades numéricas de um ingrediente por um fator (gramas, ml,
+// unidades). Mantém o texto restante intacto. Ex: "200g frango" x1.5 -> "300g frango".
+function scaleIngredient(ingredient: string, factor: number): string {
+  if (factor === 1) return ingredient;
+  return ingredient.replace(/(\d+(?:[.,]\d+)?)/g, (m) => {
+    const n = parseFloat(m.replace(",", ".")) * factor;
+    const rounded = Math.round(n * 10) / 10;
+    return (Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1)).replace(".", ",");
+  });
+}
+
+// Categorias para a vista "Descobrir" (carrosséis por tipo de refeição)
+const CATEGORY_SECTIONS = [
+  { id: "pequeno-almoco", label: "Pequeno-almoço", emoji: "🌅" },
+  { id: "principal", label: "Almoço / Jantar", emoji: "🍽️" },
+  { id: "salada", label: "Saladas", emoji: "🥗" },
+  { id: "sopa", label: "Sopas", emoji: "🍲" },
+  { id: "snack", label: "Snacks e Lanches", emoji: "🥨" },
+  { id: "lanche", label: "Snacks e Lanches", emoji: "🥨" },
+  { id: "sobremesa", label: "Sobremesas", emoji: "🍰" },
+  { id: "bebida", label: "Bebidas", emoji: "🥤" },
+];
+
 function countIngredientMatches(recipe: any, haveIngredients: string[]): number {
   const ingredientText = normalize(getIngredientsArray(recipe).join(" "));
   return haveIngredients.filter((have) => ingredientText.includes(normalize(have))).length;
@@ -97,9 +120,12 @@ function RecipeCard({ recipe, matchCount, isAiPreview, onSave, saving }: {
   saving?: boolean;
 }) {
   const [expanded, setExpanded] = useState(Boolean(isAiPreview));
+  const baseServings = recipe.servings && recipe.servings > 0 ? recipe.servings : 1;
+  const [portions, setPortions] = useState(baseServings);
   const tags = typeof recipe.tags === "string" ? JSON.parse(recipe.tags) : recipe.tags;
   const ingredients = getIngredientsArray(recipe);
   const steps = typeof recipe.steps === "string" ? JSON.parse(recipe.steps) : recipe.steps;
+  const factor = portions / baseServings;
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--white)" }}>
@@ -175,11 +201,31 @@ function RecipeCard({ recipe, matchCount, isAiPreview, onSave, saving }: {
         {expanded && (
           <div className="mt-4 space-y-4">
             <div>
-              <h4 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: "var(--black)" }}>Ingredientes</h4>
+              <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                <h4 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--black)" }}>Ingredientes</h4>
+                {/* Gramas ⇄ Porções: ajusta as quantidades */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--gray)" }}>Porções</span>
+                  <div className="flex items-center gap-1 rounded-full px-1 py-0.5" style={{ background: "var(--cream)" }}>
+                    <button onClick={() => setPortions((p) => Math.max(1, p - 1))}
+                      className="w-6 h-6 rounded-full flex items-center justify-center font-bold cursor-pointer"
+                      style={{ background: "var(--white)", color: "var(--orange)" }}>−</button>
+                    <span className="w-6 text-center text-sm font-black" style={{ color: "var(--black)" }}>{portions}</span>
+                    <button onClick={() => setPortions((p) => Math.min(20, p + 1))}
+                      className="w-6 h-6 rounded-full flex items-center justify-center font-bold cursor-pointer"
+                      style={{ background: "var(--white)", color: "var(--orange)" }}>+</button>
+                  </div>
+                </div>
+              </div>
+              {factor !== 1 && (
+                <p className="text-[10px] mb-2" style={{ color: "var(--orange)" }}>
+                  Quantidades ajustadas para {portions} {portions === 1 ? "porção" : "porções"} (receita base: {baseServings}).
+                </p>
+              )}
               <ul className="space-y-1">
                 {ingredients.map((ing: string, i: number) => (
                   <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--gray)" }}>
-                    <span style={{ color: "var(--orange)" }}>·</span>{ing}
+                    <span style={{ color: "var(--orange)" }}>·</span>{scaleIngredient(ing, factor)}
                   </li>
                 ))}
               </ul>
@@ -226,6 +272,12 @@ export default function Recipes() {
   const [aiRecipe, setAiRecipe] = useState<any | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
+  // Vista "Descobrir" (carrosséis) vs "Lista", e pedido de receita
+  const [viewMode, setViewMode] = useState<"lista" | "descobrir">("lista");
+  const [showRequest, setShowRequest] = useState(false);
+  const [requestText, setRequestText] = useState("");
+  const [requestSent, setRequestSent] = useState(false);
+
   const { data } = useQuery({ queryKey: ["recipes"], queryFn: async () => (await api.recipes.$get()).json() });
   const dbRecipes = (data as any)?.recipes ?? [];
   const allRecipes = [...DEFAULT_RECIPES, ...dbRecipes];
@@ -251,6 +303,16 @@ export default function Recipes() {
     },
     onSuccess: (recipe) => { setAiRecipe(recipe); setAiError(null); },
     onError: (err: any) => setAiError(err.message),
+  });
+
+  const requestMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.recipes.request.$post({ json: { text: requestText.trim() } });
+      const json = await res.json();
+      if (!res.ok) throw new Error((json as any).error ?? "Erro ao enviar pedido.");
+      return json;
+    },
+    onSuccess: () => { setRequestSent(true); setRequestText(""); },
   });
 
   const toggleFilter = (id: string) => {
@@ -398,17 +460,110 @@ export default function Recipes() {
         ))}
       </div>
 
+      {/* Vista (Lista / Descobrir) + Pedir para adicionar */}
+      {!ingredientMode && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex rounded-full p-1" style={{ background: "var(--white)" }}>
+            {([["lista", "Lista"], ["descobrir", "Descobrir"]] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setViewMode(id)}
+                className="px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all"
+                style={viewMode === id ? { background: "var(--orange)", color: "white" } : { color: "var(--gray)" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => { setShowRequest(true); setRequestSent(false); }}
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full cursor-pointer"
+            style={{ background: "var(--peach)", color: "var(--orange)" }}>
+            <Plus size={14} /> Pedir para adicionar
+          </button>
+        </div>
+      )}
+
       {/* Count */}
       {!ingredientMode && (
         <p className="text-xs" style={{ color: "var(--gray)" }}>{filtered.length} receita{filtered.length !== 1 ? "s" : ""}</p>
       )}
 
-      {/* Recipe grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {filtered.map((r: any) => (
-          <RecipeCard key={r.id} recipe={r} matchCount={ingredientMode ? matchCounts[r.id] : undefined} />
-        ))}
-      </div>
+      {/* DESCOBRIR: carrosséis por categoria */}
+      {!ingredientMode && viewMode === "descobrir" ? (
+        (() => {
+          const sections: { label: string; emoji: string; items: any[] }[] = [];
+          for (const sec of CATEGORY_SECTIONS) {
+            const items = filtered.filter((r: any) => (r.category ?? "principal") === sec.id);
+            if (items.length === 0) continue;
+            const existing = sections.find((s) => s.label === sec.label);
+            if (existing) existing.items.push(...items);
+            else sections.push({ label: sec.label, emoji: sec.emoji, items });
+          }
+          if (sections.length === 0) {
+            return <p className="text-sm py-6 text-center" style={{ color: "var(--gray)" }}>Nenhuma receita corresponde a estes filtros.</p>;
+          }
+          return (
+            <div className="space-y-6">
+              {sections.map((sec) => (
+                <div key={sec.label}>
+                  <h3 className="text-base font-black mb-3" style={{ color: "var(--black)" }}>{sec.emoji} {sec.label}</h3>
+                  <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+                    {sec.items.map((r: any) => (
+                      <div key={r.id} className="shrink-0 w-[280px]">
+                        <RecipeCard recipe={r} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()
+      ) : (
+        /* LISTA: grelha */
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {filtered.map((r: any) => (
+            <RecipeCard key={r.id} recipe={r} matchCount={ingredientMode ? matchCounts[r.id] : undefined} />
+          ))}
+        </div>
+      )}
+
+      {/* Pedir para adicionar modal */}
+      {showRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl" style={{ background: "var(--white)" }}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-black" style={{ color: "var(--black)" }}>Pedir para adicionar</h3>
+              <button onClick={() => setShowRequest(false)} className="cursor-pointer"><X size={22} style={{ color: "var(--gray)" }} /></button>
+            </div>
+            {requestSent ? (
+              <div className="py-6 text-center">
+                <p className="text-4xl mb-3">✅</p>
+                <p className="text-sm font-semibold" style={{ color: "var(--black)" }}>Pedido enviado!</p>
+                <p className="text-xs mt-1" style={{ color: "var(--gray)" }}>A nossa equipa vai analisar a tua sugestão.</p>
+                <button onClick={() => setShowRequest(false)}
+                  className="mt-4 px-5 py-2.5 rounded-xl font-bold text-sm text-white cursor-pointer"
+                  style={{ background: "var(--orange)" }}>Fechar</button>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs mb-4" style={{ color: "var(--gray)" }}>
+                  Há uma receita ou alimento que gostavas de ver na app? Diz-nos e nós tratamos disso. 🧑‍🍳
+                </p>
+                <textarea value={requestText} onChange={(e) => setRequestText(e.target.value)}
+                  rows={4} placeholder="ex: Panqueca de proteína sem lactose, ou bolachas de arroz integrais…"
+                  className="w-full px-4 py-3 rounded-xl text-sm border outline-none resize-none mb-3"
+                  style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
+                {requestMutation.isError && (
+                  <p className="text-xs mb-2" style={{ color: "#C0392B" }}>{(requestMutation.error as any)?.message}</p>
+                )}
+                <button onClick={() => requestMutation.mutate()} disabled={!requestText.trim() || requestMutation.isPending}
+                  className="w-full py-3.5 rounded-xl font-bold text-sm text-white cursor-pointer"
+                  style={{ background: "var(--orange)" }}>
+                  {requestMutation.isPending ? "A enviar..." : "Enviar pedido"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Add modal */}
       {showAdd && (

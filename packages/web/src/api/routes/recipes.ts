@@ -40,6 +40,19 @@ export const recipesRoute = new Hono()
       );
     }
   })
+  // Pedir para adicionar uma receita/alimento
+  .post("/request", requireAuth, async (c) => {
+    const user = c.get("user")!;
+    const body = await c.req.json<{ text: string }>();
+    if (!body.text || !body.text.trim()) {
+      return c.json({ error: "Escreve o que queres pedir." }, 400);
+    }
+    const [request] = await db
+      .insert(schema.recipeRequests)
+      .values({ userId: user.id, text: body.text.trim() })
+      .returning();
+    return c.json({ request }, 201);
+  })
   .delete("/:id", requireAuth, async (c) => {
     const id = parseInt(c.req.param("id"));
     await db.delete(schema.recipes).where(eq(schema.recipes.id, id));

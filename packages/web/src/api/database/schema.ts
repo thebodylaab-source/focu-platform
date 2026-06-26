@@ -87,6 +87,15 @@ export const recipes = sqliteTable("recipes", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Pedidos de receitas/alimentos a adicionar (por utilizador)
+export const recipeRequests = sqliteTable("recipe_requests", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  text: text("text").notNull(),
+  status: text("status").notNull().default("pendente"), // pendente | adicionado | recusado
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // Shopping list items (per user)
 export const shoppingListItems = sqliteTable("shopping_list_items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
