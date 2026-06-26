@@ -48,7 +48,7 @@ const DEFAULT_RECIPES = [
   {
     id: -1, title: "Papas de Aveia com Frutos Vermelhos", description: "Pequeno-almoço rico em fibra e proteína",
     imageUrl: "", calories: 320, protein: 14, carbs: 48, fat: 8, prepTime: 5, cookTime: 5, servings: 1,
-    ingredients: JSON.stringify(["80g aveia", "250ml leite vegetal", "1 banana", "Frutos vermelhos q.b.", "1 colher sopa manteiga amendoim"]),
+    ingredients: JSON.stringify(["80g aveia certificada sem glúten", "250ml leite vegetal", "1 banana", "Frutos vermelhos q.b.", "1 colher sopa manteiga amendoim"]),
     steps: JSON.stringify(["Aquecer o leite", "Adicionar a aveia e mexer 3-4 min", "Servir com banana e frutos vermelhos"]),
     tags: JSON.stringify(["sem-gluten", "sem-lactose", "vegetariano"]), category: "pequeno-almoco",
   },
@@ -69,7 +69,7 @@ const DEFAULT_RECIPES = [
   {
     id: -4, title: "Iogurte Grego com Granola", description: "Lanche proteico e saciante",
     imageUrl: "", calories: 280, protein: 18, carbs: 32, fat: 9, prepTime: 2, cookTime: 0, servings: 1,
-    ingredients: JSON.stringify(["200g iogurte grego", "30g granola sem açúcar", "Mel 1 col. chá", "Frutos secos q.b."]),
+    ingredients: JSON.stringify(["200g iogurte grego", "30g granola certificada sem glúten e sem açúcar", "Mel 1 col. chá", "Frutos secos q.b."]),
     steps: JSON.stringify(["Colocar o iogurte na taça", "Adicionar granola e frutos secos", "Regar com mel"]),
     tags: JSON.stringify(["sem-gluten", "vegetariano", "alta-proteina"]), category: "lanche",
   },
