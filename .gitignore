@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.turbo/
+.expo/
+android/
+ios/
+.env
+*.env
+.env.*
+!.env.example
+pm2.log
+*.log
