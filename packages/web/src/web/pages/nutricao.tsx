@@ -2,18 +2,22 @@ import { useState } from "react";
 import CalorieCounter from "../components/nutrition/calorie-counter";
 import FoodTracker from "../components/nutrition/food-tracker";
 import Recipes from "../components/nutrition/recipes";
-import { Flame, ListChecks, ChefHat } from "lucide-react";
+import ShoppingList from "../components/nutrition/shopping-list";
+import CalorieCalculator from "../components/nutrition/calorie-calculator";
+import { Flame, ListChecks, ChefHat, ShoppingCart, Calculator } from "lucide-react";
 import { useLocation } from "wouter";
 
 const TABS = [
+  { id: "calculador", label: "Calculador", icon: Calculator },
   { id: "calorias", label: "Contador", icon: Flame },
   { id: "rastreador", label: "Rastreador", icon: ListChecks },
   { id: "receitas", label: "Receitas", icon: ChefHat },
+  { id: "compras", label: "Compras", icon: ShoppingCart },
 ];
 
 export default function NutricaoPage() {
   const [location] = useLocation();
-  const defaultTab = location.includes("receitas") ? "receitas" : "calorias";
+  const defaultTab = location.includes("receitas") ? "receitas" : location.includes("calculador") ? "calculador" : "calculador";
   const [tab, setTab] = useState(defaultTab);
 
   return (
@@ -25,12 +29,12 @@ export default function NutricaoPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex rounded-2xl p-1" style={{ background: "var(--white)" }}>
+      <div className="flex rounded-2xl p-1 overflow-x-auto gap-1" style={{ background: "var(--white)" }}>
         {TABS.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setTab(id)}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all"
+            className="flex-1 min-w-fit flex items-center justify-center gap-1.5 py-3 px-3 rounded-xl text-xs font-semibold cursor-pointer transition-all whitespace-nowrap"
             style={tab === id ? { background: "var(--orange)", color: "white" } : { color: "var(--gray)" }}>
-            <Icon size={16} />
+            <Icon size={15} />
             <span>{label}</span>
           </button>
         ))}
@@ -38,9 +42,11 @@ export default function NutricaoPage() {
 
       {/* Tab content */}
       <div className="fade-up">
+        {tab === "calculador" && <CalorieCalculator />}
         {tab === "calorias" && <CalorieCounter />}
         {tab === "rastreador" && <FoodTracker />}
         {tab === "receitas" && <Recipes />}
+        {tab === "compras" && <ShoppingList />}
       </div>
     </div>
   );

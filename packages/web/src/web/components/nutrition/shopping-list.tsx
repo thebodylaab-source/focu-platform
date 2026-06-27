@@ -1,0 +1,268 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "../../lib/api";
+import { useState } from "react";
+import { Plus, Trash2, ShoppingCart, Check, X, ChevronDown } from "lucide-react";
+
+const CATEGORIES = [
+  { id: "frutas", label: "Frutas", emoji: "🍎" },
+  { id: "legumes", label: "Legumes", emoji: "🥦" },
+  { id: "proteinas", label: "Proteínas", emoji: "🍗" },
+  { id: "lacticinios", label: "Laticínios", emoji: "🥛" },
+  { id: "cereais", label: "Cereais", emoji: "🌾" },
+  { id: "outros", label: "Outros", emoji: "🛒" },
+];
+
+export default function ShoppingList() {
+  const qc = useQueryClient();
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [category, setCategory] = useState("outros");
+  const [globalSearch, setGlobalSearch] = useState("");
+
+  const { data: listData, isLoading } = useQuery({
+    queryKey: ["shopping-list"],
+    queryFn: async () => (await (api.nutrition as any).shopping.$get()).json(),
+  });
+  const items = (listData as any)?.items ?? [];
+
+  const { data: globalData } = useQuery({
+    queryKey: ["global-foods", globalSearch],
+    queryFn: async () =>
+      (await (api.nutrition as any)["global-foods"].$get({ query: { q: globalSearch } })).json(),
+    enabled: globalSearch.length > 1,
+  });
+  const globalFoods = (globalData as any)?.foods ?? [];
+
+  const addMutation = useMutation({
+    mutationFn: async (item: any) =>
+      (await (api.nutrition as any).shopping.$post({ json: item })).json(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shopping-list"] });
+      setName(""); setQuantity(""); setCategory("outros"); setShowAdd(false); setGlobalSearch("");
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, checked }: { id: number; checked: boolean }) =>
+      (await (api.nutrition as any).shopping[":id"].$patch({ param: { id: String(id) }, json: { checked } })).json(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping-list"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) =>
+      (await (api.nutrition as any).shopping[":id"].$delete({ param: { id: String(id) } })).json(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping-list"] }),
+  });
+
+  const clearCheckedMutation = useMutation({
+    mutationFn: async () =>
+      (await (api.nutrition as any).shopping.$delete()).json(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping-list"] }),
+  });
+
+  const checkedCount = items.filter((i: any) => i.checked).length;
+  const uncheckedItems = items.filter((i: any) => !i.checked);
+  const checkedItems = items.filter((i: any) => i.checked);
+
+  const grouped = CATEGORIES.map((cat) => ({
+    ...cat,
+    items: uncheckedItems.filter((i: any) => i.category === cat.id),
+  })).filter((g) => g.items.length > 0);
+
+  const handleAdd = () => {
+    if (!name.trim()) return;
+    addMutation.mutate({ name: name.trim(), quantity: quantity.trim() || null, category });
+  };
+
+  const handleSelectGlobal = (food: any) => {
+    setName(food.name);
+    setGlobalSearch("");
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShoppingCart size={20} style={{ color: "var(--orange)" }} />
+          <span className="font-bold text-sm" style={{ color: "var(--black)" }}>
+            {items.length} {items.length === 1 ? "item" : "itens"}
+            {checkedCount > 0 && <span style={{ color: "var(--gray)" }}> · {checkedCount} concluídos</span>}
+          </span>
+        </div>
+        {checkedCount > 0 && (
+          <button
+            onClick={() => clearCheckedMutation.mutate()}
+            className="text-xs px-3 py-1.5 rounded-xl cursor-pointer"
+            style={{ background: "#EF444415", color: "#EF4444" }}
+          >
+            Limpar concluídos
+          </button>
+        )}
+      </div>
+
+      {/* Add button */}
+      <button
+        onClick={() => setShowAdd(true)}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm text-white cursor-pointer"
+        style={{ background: "var(--orange)" }}
+      >
+        <Plus size={18} />
+        Adicionar item
+      </button>
+
+      {/* List */}
+      {isLoading ? (
+        <div className="animate-pulse rounded-2xl h-40" style={{ background: "var(--peach)" }} />
+      ) : items.length === 0 ? (
+        <div className="text-center py-12 rounded-2xl" style={{ background: "var(--white)" }}>
+          <div className="text-4xl mb-3">🛒</div>
+          <p className="font-bold text-sm" style={{ color: "var(--black)" }}>Lista vazia</p>
+          <p className="text-xs mt-1" style={{ color: "var(--gray)" }}>Adiciona os itens que precisas de comprar</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Unchecked by category */}
+          {grouped.map((group) => (
+            <div key={group.id} className="rounded-2xl overflow-hidden" style={{ background: "var(--white)" }}>
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b" style={{ borderColor: "var(--gray-lt)" }}>
+                <span>{group.emoji}</span>
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--gray)" }}>{group.label}</span>
+              </div>
+              {group.items.map((item: any) => (
+                <div key={item.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0" style={{ borderColor: "var(--gray-lt)" }}>
+                  <button
+                    onClick={() => toggleMutation.mutate({ id: item.id, checked: true })}
+                    className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 cursor-pointer transition-all"
+                    style={{ borderColor: "var(--orange)" }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium" style={{ color: "var(--black)" }}>{item.name}</p>
+                    {item.quantity && <p className="text-xs" style={{ color: "var(--gray)" }}>{item.quantity}</p>}
+                  </div>
+                  <button onClick={() => deleteMutation.mutate(item.id)} className="p-1.5 rounded-lg cursor-pointer shrink-0" style={{ color: "#EF4444" }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ))}
+
+          {/* Checked items */}
+          {checkedItems.length > 0 && (
+            <div className="rounded-2xl overflow-hidden opacity-60" style={{ background: "var(--white)" }}>
+              <div className="px-4 py-2.5 border-b" style={{ borderColor: "var(--gray-lt)" }}>
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--gray)" }}>✅ Comprado</span>
+              </div>
+              {checkedItems.map((item: any) => (
+                <div key={item.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0" style={{ borderColor: "var(--gray-lt)" }}>
+                  <button
+                    onClick={() => toggleMutation.mutate({ id: item.id, checked: false })}
+                    className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
+                    style={{ background: "var(--orange)" }}
+                  >
+                    <Check size={12} color="white" />
+                  </button>
+                  <p className="flex-1 text-sm line-through" style={{ color: "var(--gray)" }}>{item.name}</p>
+                  <button onClick={() => deleteMutation.mutate(item.id)} className="p-1.5 rounded-lg cursor-pointer" style={{ color: "#EF4444" }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add modal */}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl" style={{ background: "var(--white)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black" style={{ color: "var(--black)" }}>Adicionar item</h3>
+              <button onClick={() => { setShowAdd(false); setGlobalSearch(""); }} className="cursor-pointer">
+                <X size={22} style={{ color: "var(--gray)" }} />
+              </button>
+            </div>
+
+            {/* Search global foods */}
+            <div className="mb-3">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--gray)" }}>
+                Pesquisar na base de dados partilhada
+              </label>
+              <input
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                placeholder="Ex: frango, aveia..."
+                className="w-full px-3 py-2.5 rounded-xl text-sm border outline-none"
+                style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+              />
+              {globalFoods.length > 0 && (
+                <div className="mt-1 rounded-xl overflow-hidden border" style={{ borderColor: "var(--gray-lt)" }}>
+                  {globalFoods.slice(0, 5).map((f: any) => (
+                    <div
+                      key={f.id}
+                      onClick={() => handleSelectGlobal(f)}
+                      className="px-3 py-2 text-sm cursor-pointer hover:opacity-70 border-b last:border-b-0"
+                      style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+                    >
+                      {f.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--gray)" }}>Nome *</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ex: Frango, Aveia, Leite..."
+                  className="w-full px-3 py-2.5 rounded-xl text-sm border outline-none"
+                  style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--gray)" }}>Quantidade</label>
+                  <input
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    placeholder="Ex: 500g, 2 uni..."
+                    className="w-full px-3 py-2.5 rounded-xl text-sm border outline-none"
+                    style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--gray)" }}>Categoria</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm border outline-none"
+                    style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleAdd}
+              disabled={!name.trim() || addMutation.isPending}
+              className="w-full mt-4 py-3 rounded-xl font-bold text-sm text-white cursor-pointer disabled:opacity-50"
+              style={{ background: "var(--orange)" }}
+            >
+              {addMutation.isPending ? "A adicionar..." : "Adicionar à lista"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

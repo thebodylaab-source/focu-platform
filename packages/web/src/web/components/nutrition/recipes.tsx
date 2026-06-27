@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../../lib/api";
 import { useState } from "react";
-import { Clock, Users, Flame, Plus, X, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, Users, Flame, Plus, X, Search, ChevronDown, ChevronUp, Sparkles, Loader2 } from "lucide-react";
+import { getToken } from "../../lib/auth";
 
 const FILTERS = [
   { id: "sem-gluten", label: "Sem Glúten", emoji: "🌾" },
@@ -12,7 +12,6 @@ const FILTERS = [
   { id: "alta-proteina", label: "Alta Proteína", emoji: "💪" },
 ];
 
-// Default recipes
 const DEFAULT_RECIPES = [
   {
     id: -1, title: "Papas de Aveia com Frutos Vermelhos", description: "Pequeno-almoço rico em fibra e proteína",
@@ -58,15 +57,19 @@ const DEFAULT_RECIPES = [
   },
 ];
 
+const authHeaders = () => {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+};
+
 function RecipeCard({ recipe }: { recipe: any }) {
   const [expanded, setExpanded] = useState(false);
-  const tags = typeof recipe.tags === "string" ? JSON.parse(recipe.tags) : recipe.tags;
-  const ingredients = typeof recipe.ingredients === "string" ? JSON.parse(recipe.ingredients) : recipe.ingredients;
-  const steps = typeof recipe.steps === "string" ? JSON.parse(recipe.steps) : recipe.steps;
+  const tags = typeof recipe.tags === "string" ? JSON.parse(recipe.tags) : (recipe.tags ?? []);
+  const ingredients = typeof recipe.ingredients === "string" ? JSON.parse(recipe.ingredients) : (recipe.ingredients ?? []);
+  const steps = typeof recipe.steps === "string" ? JSON.parse(recipe.steps) : (recipe.steps ?? []);
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--white)" }}>
-      {/* Card color header */}
       <div className="h-3" style={{ background: "var(--orange)" }} />
       <div className="p-5">
         <div className="flex items-start justify-between gap-2 mb-3">
@@ -75,9 +78,8 @@ function RecipeCard({ recipe }: { recipe: any }) {
         </div>
         {recipe.description && <p className="text-xs mb-3" style={{ color: "var(--gray)" }}>{recipe.description}</p>}
 
-        {/* Meta */}
         <div className="flex gap-3 mb-3">
-          {(recipe.prepTime || recipe.cookTime) > 0 && (
+          {((recipe.prepTime ?? 0) + (recipe.cookTime ?? 0)) > 0 && (
             <div className="flex items-center gap-1 text-xs" style={{ color: "var(--gray)" }}>
               <Clock size={13} />{(recipe.prepTime ?? 0) + (recipe.cookTime ?? 0)} min
             </div>
@@ -92,11 +94,10 @@ function RecipeCard({ recipe }: { recipe: any }) {
           )}
         </div>
 
-        {/* Macros */}
         {recipe.protein && (
           <div className="grid grid-cols-3 gap-2 mb-3">
             {[["💪", recipe.protein + "g", "Proteína"], ["🌾", recipe.carbs + "g", "Hidratos"], ["🥑", recipe.fat + "g", "Gorduras"]].map(([e, v, l]) => (
-              <div key={l} className="text-center py-2 rounded-xl" style={{ background: "var(--cream)" }}>
+              <div key={l as string} className="text-center py-2 rounded-xl" style={{ background: "var(--cream)" }}>
                 <p className="text-sm">{e}</p>
                 <p className="text-xs font-bold" style={{ color: "var(--black)" }}>{v}</p>
                 <p className="text-[10px]" style={{ color: "var(--gray)" }}>{l}</p>
@@ -105,7 +106,6 @@ function RecipeCard({ recipe }: { recipe: any }) {
           </div>
         )}
 
-        {/* Tags */}
         <div className="flex flex-wrap gap-1.5 mb-3">
           {tags.map((t: string) => {
             const f = FILTERS.find(fl => fl.id === t);
@@ -117,7 +117,6 @@ function RecipeCard({ recipe }: { recipe: any }) {
           })}
         </div>
 
-        {/* Expand */}
         <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-xs font-semibold cursor-pointer" style={{ color: "var(--orange)" }}>
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           {expanded ? "Ocultar detalhes" : "Ver receita completa"}
@@ -153,35 +152,131 @@ function RecipeCard({ recipe }: { recipe: any }) {
   );
 }
 
+const EMPTY_FORM = {
+  title: "", description: "", calories: "", protein: "", carbs: "", fat: "",
+  prepTime: "", cookTime: "", servings: "2", ingredients: "", steps: "", tags: [] as string[], category: "principal",
+};
+
 export default function Recipes() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({
-    title: "", description: "", calories: "", protein: "", carbs: "", fat: "",
-    prepTime: "", cookTime: "", servings: 2, ingredients: "", steps: "", tags: [] as string[], category: "principal",
-  });
+  const [showAI, setShowAI] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const { data } = useQuery({ queryKey: ["recipes"], queryFn: async () => (await api.recipes.$get()).json() });
+  const { data } = useQuery({
+    queryKey: ["recipes"],
+    queryFn: async () => {
+      const res = await fetch("/api/recipes", { headers: authHeaders() });
+      return res.json();
+    },
+  });
   const dbRecipes = (data as any)?.recipes ?? [];
   const allRecipes = [...DEFAULT_RECIPES, ...dbRecipes];
-
-  const addMutation = useMutation({
-    mutationFn: async (r: any) => (await api.recipes.$post({ json: r })).json(),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); setShowAdd(false); },
-  });
 
   const toggleFilter = (id: string) => {
     setActiveFilters(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   };
 
   const filtered = allRecipes.filter(r => {
-    const tags = typeof r.tags === "string" ? JSON.parse(r.tags) : r.tags;
+    const tags = typeof r.tags === "string" ? JSON.parse(r.tags) : (r.tags ?? []);
     const matchSearch = !search || r.title.toLowerCase().includes(search.toLowerCase());
     const matchFilters = activeFilters.length === 0 || activeFilters.every(f => tags.includes(f));
     return matchSearch && matchFilters;
   });
+
+  // Save recipe via fetch direto
+  const saveRecipe = async (recipeData: any) => {
+    setSaving(true);
+    setSaveError("");
+    try {
+      const res = await fetch("/api/recipes", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(recipeData),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any)?.message || "Erro ao guardar receita");
+      }
+      qc.invalidateQueries({ queryKey: ["recipes"] });
+      setShowAdd(false);
+      setShowAI(false);
+      setForm({ ...EMPTY_FORM });
+    } catch (e: any) {
+      setSaveError(e.message || "Erro ao guardar receita");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Generate with AI
+  const generateWithAI = async () => {
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const res = await fetch("/api/recipes/generate", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ prompt: aiPrompt || undefined }),
+      });
+      const data = await res.json() as any;
+      if (!res.ok || data.error) throw new Error(data.error || "Erro ao gerar receita");
+
+      const r = data.recipe;
+      // Pre-fill the form with generated data
+      const ingredients = typeof r.ingredients === "string" ? JSON.parse(r.ingredients) : (r.ingredients ?? []);
+      const steps = typeof r.steps === "string" ? JSON.parse(r.steps) : (r.steps ?? []);
+      const tags = typeof r.tags === "string" ? JSON.parse(r.tags) : (r.tags ?? []);
+
+      setForm({
+        title: r.title ?? "",
+        description: r.description ?? "",
+        calories: String(r.calories ?? ""),
+        protein: String(r.protein ?? ""),
+        carbs: String(r.carbs ?? ""),
+        fat: String(r.fat ?? ""),
+        prepTime: String(r.prepTime ?? ""),
+        cookTime: String(r.cookTime ?? ""),
+        servings: String(r.servings ?? "2"),
+        ingredients: ingredients.join("\n"),
+        steps: steps.join("\n"),
+        tags: tags,
+        category: r.category ?? "principal",
+      });
+      setShowAI(false);
+      setShowAdd(true);
+    } catch (e: any) {
+      setAiError(e.message || "Erro ao gerar receita");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveRecipe({
+      title: form.title,
+      description: form.description || null,
+      calories: parseFloat(form.calories) || null,
+      protein: parseFloat(form.protein) || null,
+      carbs: parseFloat(form.carbs) || null,
+      fat: parseFloat(form.fat) || null,
+      prepTime: parseInt(form.prepTime) || 0,
+      cookTime: parseInt(form.cookTime) || 0,
+      servings: parseInt(form.servings as string) || 2,
+      ingredients: JSON.stringify(form.ingredients.split("\n").filter(Boolean)),
+      steps: JSON.stringify(form.steps.split("\n").filter(Boolean)),
+      tags: JSON.stringify(form.tags),
+      category: form.category,
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -193,9 +288,15 @@ export default function Recipes() {
             className="w-full pl-11 pr-4 py-3 rounded-xl text-sm border outline-none"
             style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
         </div>
-        <button onClick={() => setShowAdd(true)}
-          className="px-4 py-3 rounded-xl font-semibold text-sm text-white cursor-pointer"
+        <button onClick={() => { setShowAI(true); setAiError(""); setAiPrompt(""); }}
+          className="flex items-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white cursor-pointer"
           style={{ background: "var(--orange)" }}>
+          <Sparkles size={16} />
+          <span className="hidden sm:inline">Gerar com IA</span>
+        </button>
+        <button onClick={() => { setShowAdd(true); setForm({ ...EMPTY_FORM }); setSaveError(""); }}
+          className="px-4 py-3 rounded-xl font-semibold text-sm text-white cursor-pointer border"
+          style={{ background: "transparent", borderColor: "var(--orange)", color: "var(--orange)" }}>
           <Plus size={18} />
         </button>
       </div>
@@ -213,37 +314,69 @@ export default function Recipes() {
         ))}
       </div>
 
-      {/* Count */}
       <p className="text-xs" style={{ color: "var(--gray)" }}>{filtered.length} receita{filtered.length !== 1 ? "s" : ""}</p>
 
-      {/* Recipe grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {filtered.map((r: any) => <RecipeCard key={r.id} recipe={r} />)}
       </div>
 
-      {/* Add modal */}
+      {/* AI Generate Modal */}
+      {showAI && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl" style={{ background: "var(--white)" }}>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <Sparkles size={20} style={{ color: "var(--orange)" }} />
+                <h3 className="text-lg font-black" style={{ color: "var(--black)" }}>Gerar Receita com IA</h3>
+              </div>
+              <button onClick={() => setShowAI(false)} className="cursor-pointer"><X size={22} style={{ color: "var(--gray)" }} /></button>
+            </div>
+            <p className="text-sm mb-4" style={{ color: "var(--gray)" }}>
+              Descreve o que queres ou deixa em branco para uma receita saudável surpresa!
+            </p>
+            <textarea
+              value={aiPrompt}
+              onChange={e => setAiPrompt(e.target.value)}
+              placeholder="Ex: receita de lanche pós-treino sem lactose com aveia, rica em proteína..."
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl text-sm border outline-none resize-none mb-4"
+              style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+            />
+            {aiError && <p className="text-xs text-red-500 mb-3">{aiError}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => setShowAI(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold cursor-pointer border"
+                style={{ borderColor: "var(--gray-lt)", color: "var(--gray)" }}>
+                Cancelar
+              </button>
+              <button onClick={generateWithAI} disabled={aiLoading}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white cursor-pointer"
+                style={{ background: "var(--orange)" }}>
+                {aiLoading ? <><Loader2 size={16} className="animate-spin" /> A gerar...</> : <><Sparkles size={16} /> Gerar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
           <div className="w-full max-w-lg rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: "var(--white)" }}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-black" style={{ color: "var(--black)" }}>Nova Receita</h3>
-              <button onClick={() => setShowAdd(false)} className="cursor-pointer"><X size={22} style={{ color: "var(--gray)" }} /></button>
+              <h3 className="text-lg font-black" style={{ color: "var(--black)" }}>
+                {form.title ? "✨ Receita Gerada por IA" : "Nova Receita"}
+              </h3>
+              <button onClick={() => { setShowAdd(false); setSaveError(""); }} className="cursor-pointer">
+                <X size={22} style={{ color: "var(--gray)" }} />
+              </button>
             </div>
-            <form onSubmit={e => {
-              e.preventDefault();
-              addMutation.mutate({
-                ...form,
-                calories: parseFloat(form.calories) || null,
-                protein: parseFloat(form.protein) || null,
-                carbs: parseFloat(form.carbs) || null,
-                fat: parseFloat(form.fat) || null,
-                prepTime: parseInt(form.prepTime) || 0,
-                cookTime: parseInt(form.cookTime) || 0,
-                ingredients: JSON.stringify(form.ingredients.split("\n").filter(Boolean)),
-                steps: JSON.stringify(form.steps.split("\n").filter(Boolean)),
-                tags: JSON.stringify(form.tags),
-              });
-            }} className="space-y-4">
+            {form.title && (
+              <div className="mb-4 px-4 py-3 rounded-xl text-xs font-semibold" style={{ background: "var(--peach)", color: "var(--orange)" }}>
+                ✨ Receita gerada pela IA — podes editar antes de guardar
+              </div>
+            )}
+            <form onSubmit={handleFormSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--gray)" }}>Título *</label>
                 <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
@@ -284,7 +417,8 @@ export default function Recipes() {
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--gray)" }}>Restrições alimentares</label>
                 <div className="flex flex-wrap gap-2">
                   {FILTERS.map(f => (
-                    <button key={f.id} type="button" onClick={() => setForm(form => ({ ...form, tags: form.tags.includes(f.id) ? form.tags.filter(t => t !== f.id) : [...form.tags, f.id] }))}
+                    <button key={f.id} type="button"
+                      onClick={() => setForm(form => ({ ...form, tags: form.tags.includes(f.id) ? form.tags.filter(t => t !== f.id) : [...form.tags, f.id] }))}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer"
                       style={form.tags.includes(f.id) ? { background: "var(--orange)", color: "white" } : { background: "var(--cream)", color: "var(--gray)", border: "1px solid var(--gray-lt)" }}>
                       {f.emoji} {f.label}
@@ -292,10 +426,11 @@ export default function Recipes() {
                   ))}
                 </div>
               </div>
-              <button type="submit" disabled={addMutation.isPending}
-                className="w-full py-3.5 rounded-xl font-bold text-sm text-white cursor-pointer"
+              {saveError && <p className="text-xs text-red-500">{saveError}</p>}
+              <button type="submit" disabled={saving}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm text-white cursor-pointer"
                 style={{ background: "var(--orange)" }}>
-                {addMutation.isPending ? "A adicionar..." : "Adicionar Receita"}
+                {saving ? <><Loader2 size={16} className="animate-spin" /> A guardar...</> : "Guardar Receita"}
               </button>
             </form>
           </div>

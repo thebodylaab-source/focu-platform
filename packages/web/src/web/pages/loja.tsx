@@ -1,7 +1,8 @@
 import { useLocation } from "wouter";
-import { ShoppingBag, Play, FileText, Salad, ChevronRight, Star, CheckCircle2 } from "lucide-react";
+import { ShoppingBag, Play, FileText, Salad, ChevronRight, Star, CheckCircle2, MessageCircle } from "lucide-react";
 
 const PAYMENT_LINK = "https://buy.stripe.com/00wfZj9ilaQ3biS4wfc3m01";
+const WHATSAPP_LINK = "https://wa.me/351913159587?text=Ol%C3%A1%2C+tenho+d%C3%BAvidas+sobre+o+FO.CU+%F0%9F%8D%91";
 
 const FEATURES = [
   { icon: <Play size={18} />, label: "Vídeos do desafio", desc: "4 semanas de treinos guiados passo a passo" },
@@ -11,7 +12,7 @@ const FEATURES = [
 ];
 
 const TESTIMONIALS = [
-  { name: "Ana Costa", text: "Perdi 4cm de anca em 4 semanas. Os treinos são curtos mas intensos!", stars: 5 },
+  { name: "Ana Costa", text: "Ganhei 2cm de anca em 4 semanas. Os treinos são curtos mas intensos!", stars: 5 },
   { name: "Mariana S.", text: "Finalmente um programa que dá resultados a sério. Adoro os vídeos!", stars: 5 },
   { name: "Sofia L.", text: "As receitas são incríveis e o suporte é muito bom. Recomendo!", stars: 5 },
 ];
@@ -61,8 +62,36 @@ export default function LojaPage() {
         </a>
 
         <p className="text-xs mt-4" style={{ color: "#999" }}>
-          Acesso imediato após pagamento · Pagamento seguro via Stripe
+          Pagamento seguro via Stripe
         </p>
+
+        {/* Pós-pagamento instrução */}
+        <div className="mt-6 inline-block rounded-2xl px-6 py-4 text-left max-w-sm"
+          style={{ background: "#F07A3012", border: "1.5px solid #F07A3030" }}>
+          <p className="text-xs font-bold mb-1" style={{ color: "var(--orange)" }}>✅ Após o pagamento:</p>
+          <p className="text-xs" style={{ color: "#555" }}>
+            Cria a tua conta em{" "}
+            <button onClick={() => navigate("/register")} className="underline font-bold cursor-pointer"
+              style={{ color: "var(--orange)" }}>
+              focu.pt/register
+            </button>{" "}
+            com o mesmo email usado no pagamento para teres acesso imediato.
+          </p>
+        </div>
+
+        {/* WhatsApp */}
+        <div className="mt-4">
+          <a
+            href={WHATSAPP_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-xl transition-opacity hover:opacity-80"
+            style={{ background: "#25D36620", color: "#128C7E" }}
+          >
+            <MessageCircle size={14} />
+            Tens dúvidas? Fala connosco no WhatsApp
+          </a>
+        </div>
       </section>
 
       {/* O que inclui */}
@@ -130,11 +159,30 @@ export default function LojaPage() {
           </a>
           <p className="text-xs mt-4" style={{ color: "#999" }}>
             Já compraste?{" "}
+            <button onClick={() => navigate("/register")} className="underline font-bold cursor-pointer"
+              style={{ color: "var(--orange)" }}>
+              Cria a tua conta aqui
+            </button>
+            {" "}ou{" "}
             <button onClick={() => navigate("/login")} className="underline cursor-pointer"
               style={{ color: "var(--orange)" }}>
-              Entra aqui
+              entra na tua conta
             </button>
           </p>
+
+          {/* WhatsApp CTA bottom */}
+          <div className="mt-6 pt-6 border-t" style={{ borderColor: "#eee" }}>
+            <a
+              href={WHATSAPP_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-xl transition-opacity hover:opacity-80"
+              style={{ background: "#25D36615", color: "#128C7E" }}
+            >
+              <MessageCircle size={16} />
+              Dúvidas? Fala connosco no WhatsApp
+            </a>
+          </div>
         </div>
       </section>
     </div>

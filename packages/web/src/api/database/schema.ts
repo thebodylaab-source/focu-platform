@@ -87,6 +87,31 @@ export const recipes = sqliteTable("recipes", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Global food database (shared across all users — populated when custom foods are added)
+export const globalFoods = sqliteTable("global_foods", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  calories: real("calories").notNull(),
+  protein: real("protein").notNull().default(0),
+  carbs: real("carbs").notNull().default(0),
+  fat: real("fat").notNull().default(0),
+  servingSize: real("serving_size").notNull().default(100),
+  servingUnit: text("serving_unit").notNull().default("g"),
+  addedByUserId: text("added_by_user_id"),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+// Shopping list items (per user)
+export const shoppingList = sqliteTable("shopping_list", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  quantity: text("quantity"), // e.g. "500g", "2 unidades"
+  category: text("category").notNull().default("outros"), // legumes | frutas | proteinas | lacticinios | cereais | outros
+  checked: integer("checked", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // User membership status
 export const memberships = sqliteTable("memberships", {
   id: integer("id").primaryKey({ autoIncrement: true }),

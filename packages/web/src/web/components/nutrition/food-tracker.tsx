@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
+import { getToken } from "../../lib/auth";
 import { useState } from "react";
 import { Plus, Trash2, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -49,18 +50,70 @@ export default function FoodTracker() {
   });
   const logs = (logsData as any)?.logs ?? [];
 
+  // Search global foods DB
+  const { data: globalData } = useQuery({
+    queryKey: ["global-foods-search", search],
+    queryFn: async () => {
+      const res = await fetch(`/api/nutrition/global-foods?q=${encodeURIComponent(search)}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      return res.json();
+    },
+    enabled: search.length > 1,
+  });
+  const globalFoods: any[] = (globalData as any)?.foods ?? [];
+
   const addMutation = useMutation({
     mutationFn: async (entry: any) => (await api.nutrition.logs.$post({ json: entry })).json(),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["food-logs"] }); setShowAdd(false); setSelectedFood(null); setSearch(""); setQty(1); },
   });
+
+  const saveGlobalFood = async (food: typeof customFood) => {
+    try {
+      await fetch("/api/nutrition/global-foods", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          name: food.name,
+          calories: food.calories,
+          protein: food.protein,
+          carbs: food.carbs,
+          fat: food.fat,
+          servingSize: food.servingSize,
+          servingUnit: "g",
+        }),
+      });
+    } catch { /* silently ignore */ }
+  };
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => (await api.nutrition.logs[":id"].$delete({ param: { id: String(id) } })).json(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["food-logs"] }),
   });
 
-  const filteredFoods = search.length > 1
+  const deleteGlobalFoodMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/nutrition/global-foods/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["global-foods-search"] }),
+  });
+
+  // Merge: static list + global DB results, deduplicate by name
+  const staticFiltered = search.length > 1
     ? COMMON_FOODS.filter(f => f.name.toLowerCase().includes(search.toLowerCase()))
     : COMMON_FOODS;
+
+  const globalFiltered = globalFoods.filter(
+    gf => !staticFiltered.some(sf => sf.name.toLowerCase() === gf.name.toLowerCase())
+  ).map(gf => ({ ...gf, _fromDB: true }));
+
+  const filteredFoods = [...staticFiltered, ...globalFiltered];
 
   const prevDay = () => {
     const d = new Date(date); d.setDate(d.getDate() - 1); setDate(d.toISOString().split("T")[0]);
@@ -73,6 +126,10 @@ export default function FoodTracker() {
   const handleAdd = () => {
     const food = addMode === "search" ? selectedFood : customFood;
     if (!food) return;
+    // If custom food, save to global DB (shared with all users)
+    if (addMode === "custom" && customFood.name) {
+      saveGlobalFood(customFood);
+    }
     addMutation.mutate({
       foodName: food.name,
       calories: food.calories,
@@ -192,15 +249,37 @@ export default function FoodTracker() {
                     style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
                 </div>
                 <div className="max-h-48 overflow-y-auto space-y-1 mb-4">
-                  {filteredFoods.map(f => (
+                  {filteredFoods.length === 0 && (
+                    <p className="text-xs text-center py-4" style={{ color: "var(--gray)" }}>Sem resultados. Usa "Alimento personalizado" para adicionar.</p>
+                  )}
+                  {filteredFoods.map((f: any) => (
                     <div key={f.name} onClick={() => setSelectedFood(f)}
                       className="flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all"
                       style={{ background: selectedFood?.name === f.name ? "var(--peach)" : "var(--cream)" }}>
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: "var(--black)" }}>{f.name}</p>
-                        <p className="text-xs" style={{ color: "var(--gray)" }}>{f.calories} kcal/{f.servingSize}{f.servingUnit} · P:{f.protein}g H:{f.carbs}g G:{f.fat}g</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium" style={{ color: "var(--black)" }}>{f.name}</p>
+                          {f._fromDB && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "#F07A3020", color: "var(--orange)" }}>
+                              personalizado
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs" style={{ color: "var(--gray)" }}>{f.calories} kcal/{f.servingSize}{f.servingUnit ?? "g"} · P:{f.protein}g H:{f.carbs}g G:{f.fat}g</p>
                       </div>
-                      {selectedFood?.name === f.name && <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--orange)" }}><span className="text-white text-xs">✓</span></div>}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {f._fromDB && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteGlobalFoodMutation.mutate(f.id); }}
+                            className="p-1 rounded-lg cursor-pointer transition-opacity hover:opacity-70"
+                            style={{ color: "#EF4444" }}
+                            title="Remover alimento"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                        {selectedFood?.name === f.name && <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "var(--orange)" }}><span className="text-white text-xs">✓</span></div>}
+                      </div>
                     </div>
                   ))}
                 </div>
