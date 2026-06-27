@@ -12,6 +12,33 @@ const FILTERS = [
   { id: "alta-proteina", label: "Alta Proteína", emoji: "💪" },
 ];
 
+// Escala as quantidades numéricas de um ingrediente por um fator.
+// Ex: "200g frango" x1.5 -> "300g frango".
+function scaleIngredient(ingredient: string, factor: number): string {
+  if (factor === 1) return ingredient;
+  return ingredient.replace(/(\d+(?:[.,]\d+)?)/g, (m) => {
+    const n = parseFloat(m.replace(",", ".")) * factor;
+    const rounded = Math.round(n * 10) / 10;
+    return (Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1)).replace(".", ",");
+  });
+}
+
+// Secções da vista "Descobrir" (carrosséis por tipo de refeição).
+const CATEGORY_SECTIONS = [
+  { id: "pequeno-almoco", label: "Pequeno-almoço", emoji: "🌅" },
+  { id: "principal", label: "Almoço / Jantar", emoji: "🍽️" },
+  { id: "salada", label: "Saladas", emoji: "🥗" },
+  { id: "sopa", label: "Sopas", emoji: "🍲" },
+  { id: "snack", label: "Snacks e Lanches", emoji: "🥨" },
+  { id: "lanche", label: "Snacks e Lanches", emoji: "🥨" },
+  { id: "sobremesa", label: "Sobremesas", emoji: "🍰" },
+  { id: "bebida", label: "Bebidas", emoji: "🥤" },
+];
+
+function normalizeText(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
 const DEFAULT_RECIPES = [
   {
     id: -1, title: "Papas de Aveia com Frutos Vermelhos", description: "Pequeno-almoço rico em fibra e proteína",
@@ -64,6 +91,9 @@ const authHeaders = () => {
 
 function RecipeCard({ recipe }: { recipe: any }) {
   const [expanded, setExpanded] = useState(false);
+  const baseServings = recipe.servings && recipe.servings > 0 ? recipe.servings : 1;
+  const [portions, setPortions] = useState(baseServings);
+  const factor = portions / baseServings;
   const tags = typeof recipe.tags === "string" ? JSON.parse(recipe.tags) : (recipe.tags ?? []);
   const ingredients = typeof recipe.ingredients === "string" ? JSON.parse(recipe.ingredients) : (recipe.ingredients ?? []);
   const steps = typeof recipe.steps === "string" ? JSON.parse(recipe.steps) : (recipe.steps ?? []);
@@ -125,11 +155,31 @@ function RecipeCard({ recipe }: { recipe: any }) {
         {expanded && (
           <div className="mt-4 space-y-4">
             <div>
-              <h4 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: "var(--black)" }}>Ingredientes</h4>
+              <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                <h4 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--black)" }}>Ingredientes</h4>
+                {/* Ajuste de porções: escala as quantidades */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--gray)" }}>Porções</span>
+                  <div className="flex items-center gap-1 rounded-full px-1 py-0.5" style={{ background: "var(--cream)" }}>
+                    <button onClick={() => setPortions((p: number) => Math.max(1, p - 1))}
+                      className="w-6 h-6 rounded-full flex items-center justify-center font-bold cursor-pointer"
+                      style={{ background: "var(--white)", color: "var(--orange)" }}>−</button>
+                    <span className="w-6 text-center text-sm font-black" style={{ color: "var(--black)" }}>{portions}</span>
+                    <button onClick={() => setPortions((p: number) => Math.min(20, p + 1))}
+                      className="w-6 h-6 rounded-full flex items-center justify-center font-bold cursor-pointer"
+                      style={{ background: "var(--white)", color: "var(--orange)" }}>+</button>
+                  </div>
+                </div>
+              </div>
+              {factor !== 1 && (
+                <p className="text-[10px] mb-2" style={{ color: "var(--orange)" }}>
+                  Quantidades ajustadas para {portions} {portions === 1 ? "porção" : "porções"} (base: {baseServings}).
+                </p>
+              )}
               <ul className="space-y-1">
                 {ingredients.map((ing: string, i: number) => (
                   <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "var(--gray)" }}>
-                    <span style={{ color: "var(--orange)" }}>·</span>{ing}
+                    <span style={{ color: "var(--orange)" }}>·</span>{scaleIngredient(ing, factor)}
                   </li>
                 ))}
               </ul>
@@ -169,6 +219,9 @@ export default function Recipes() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<"lista" | "descobrir">("lista");
+  const [ingredientInput, setIngredientInput] = useState("");
+  const [haveIngredients, setHaveIngredients] = useState<string[]>([]);
 
   const { data } = useQuery({
     queryKey: ["recipes"],
@@ -184,12 +237,43 @@ export default function Recipes() {
     setActiveFilters(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   };
 
-  const filtered = allRecipes.filter(r => {
+  let filtered = allRecipes.filter(r => {
     const tags = typeof r.tags === "string" ? JSON.parse(r.tags) : (r.tags ?? []);
     const matchSearch = !search || r.title.toLowerCase().includes(search.toLowerCase());
     const matchFilters = activeFilters.length === 0 || activeFilters.every(f => tags.includes(f));
     return matchSearch && matchFilters;
   });
+
+  // Pesquisa por ingredientes: conta quantos ingredientes que o utilizador tem
+  // aparecem na receita, ordena pelas que mais aproveitam.
+  const ingredientMode = haveIngredients.length > 0;
+  const matchCounts: Record<string, number> = {};
+  if (ingredientMode) {
+    filtered = filtered
+      .map((r: any) => {
+        const ings = typeof r.ingredients === "string" ? JSON.parse(r.ingredients) : (r.ingredients ?? []);
+        const text = normalizeText(ings.join(" "));
+        matchCounts[r.id] = haveIngredients.filter(h => text.includes(normalizeText(h))).length;
+        return r;
+      })
+      .filter((r: any) => matchCounts[r.id] > 0)
+      .sort((a: any, b: any) => matchCounts[b.id] - matchCounts[a.id]);
+  }
+
+  const addHaveIngredient = () => {
+    const v = ingredientInput.trim();
+    if (!v || haveIngredients.some(i => normalizeText(i) === normalizeText(v))) return;
+    setHaveIngredients([...haveIngredients, v]);
+    setIngredientInput("");
+  };
+
+  // Gera receita por IA a partir dos ingredientes disponíveis + filtros ativos.
+  const generateFromIngredients = () => {
+    const restr = activeFilters.length ? ` Restrições: ${activeFilters.join(", ")}.` : "";
+    setAiPrompt(`Cria uma receita saudável usando principalmente estes ingredientes: ${haveIngredients.join(", ")}.${restr}`);
+    setShowAI(true);
+    setAiError("");
+  };
 
   // Save recipe via fetch direto
   const saveRecipe = async (recipeData: any) => {
@@ -280,6 +364,47 @@ export default function Recipes() {
 
   return (
     <div className="space-y-5">
+      {/* O que posso cozinhar? — pesquisa por ingredientes */}
+      <div className="rounded-2xl p-4" style={{ background: "var(--peach)" }}>
+        <p className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: "var(--orange)" }}>
+          🥗 O que posso cozinhar?
+        </p>
+        <div className="flex gap-2 mb-2">
+          <input type="text" value={ingredientInput} onChange={e => setIngredientInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addHaveIngredient(); } }}
+            placeholder="ex: frango, brócolos, arroz"
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm border outline-none"
+            style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
+          <button onClick={addHaveIngredient}
+            className="px-4 py-2.5 rounded-xl font-semibold text-sm text-white cursor-pointer"
+            style={{ background: "var(--orange)" }}>Adicionar</button>
+        </div>
+        {haveIngredients.length > 0 && (
+          <>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {haveIngredients.map(ing => (
+                <span key={ing} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full" style={{ background: "var(--white)", color: "var(--black)" }}>
+                  {ing}
+                  <button onClick={() => setHaveIngredients(haveIngredients.filter(i => i !== ing))} className="cursor-pointer" style={{ color: "var(--gray)" }}>
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs" style={{ color: "var(--gray)" }}>
+                {filtered.length === 0 ? "Sem receitas com esses ingredientes." : `${filtered.length} receita${filtered.length !== 1 ? "s" : ""} que dá para fazer.`}
+              </p>
+              <button onClick={generateFromIngredients}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs text-white cursor-pointer"
+                style={{ background: "var(--orange)" }}>
+                <Sparkles size={14} /> Criar receita à medida com IA
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Search + add */}
       <div className="flex gap-3">
         <div className="relative flex-1">
@@ -314,11 +439,55 @@ export default function Recipes() {
         ))}
       </div>
 
-      <p className="text-xs" style={{ color: "var(--gray)" }}>{filtered.length} receita{filtered.length !== 1 ? "s" : ""}</p>
+      {/* Vista Lista / Descobrir */}
+      {!ingredientMode && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex rounded-full p-1" style={{ background: "var(--white)" }}>
+            {([["lista", "Lista"], ["descobrir", "Descobrir"]] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setViewMode(id)}
+                className="px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all"
+                style={viewMode === id ? { background: "var(--orange)", color: "white" } : { color: "var(--gray)" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs" style={{ color: "var(--gray)" }}>{filtered.length} receita{filtered.length !== 1 ? "s" : ""}</p>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {filtered.map((r: any) => <RecipeCard key={r.id} recipe={r} />)}
-      </div>
+      {!ingredientMode && viewMode === "descobrir" ? (
+        (() => {
+          const sections: { label: string; emoji: string; items: any[] }[] = [];
+          for (const sec of CATEGORY_SECTIONS) {
+            const items = filtered.filter((r: any) => (r.category ?? "principal") === sec.id);
+            if (items.length === 0) continue;
+            const existing = sections.find(s => s.label === sec.label);
+            if (existing) existing.items.push(...items);
+            else sections.push({ label: sec.label, emoji: sec.emoji, items });
+          }
+          if (sections.length === 0) {
+            return <p className="text-sm py-6 text-center" style={{ color: "var(--gray)" }}>Nenhuma receita corresponde a estes filtros.</p>;
+          }
+          return (
+            <div className="space-y-6">
+              {sections.map(sec => (
+                <div key={sec.label}>
+                  <h3 className="text-base font-black mb-3" style={{ color: "var(--black)" }}>{sec.emoji} {sec.label}</h3>
+                  <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+                    {sec.items.map((r: any) => (
+                      <div key={r.id} className="shrink-0 w-[280px]"><RecipeCard recipe={r} /></div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {filtered.map((r: any) => <RecipeCard key={r.id} recipe={r} />)}
+        </div>
+      )}
 
       {/* AI Generate Modal */}
       {showAI && (
