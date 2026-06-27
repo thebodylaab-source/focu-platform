@@ -10,6 +10,11 @@ const server = Bun.serve({
   async fetch(request) {
     const url = new URL(request.url);
 
+    // Healthcheck simples — responde sem tocar na API/auth/BD.
+    if (url.pathname === "/healthz") {
+      return new Response("ok", { status: 200 });
+    }
+
     if (url.pathname.startsWith("/api")) {
       return app.fetch(request);
     }
