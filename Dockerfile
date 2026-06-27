@@ -13,6 +13,10 @@ RUN bun install
 COPY . .
 RUN cd packages/web && bun run build
 
+# Corre a partir da pasta do servidor (sem precisar de 'cd' no arranque)
+WORKDIR /app/packages/web
+
 EXPOSE 3000
 
-CMD ["sh", "-c", "cd packages/web && bun src/server.ts"]
+ENTRYPOINT []
+CMD ["bun", "src/server.ts"]
