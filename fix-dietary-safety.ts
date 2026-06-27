@@ -6,7 +6,7 @@
  *
  *   - sem-gluten + "aveia" sem certificação  -> "aveia certificada sem glúten"
  *   - sem-gluten + molho de soja comum        -> "molho de soja sem glúten (tamari)"
- *   - vegan + "mel" (mel de abelha)           -> remove a tag "vegan" (mantém vegetariano)
+ *   - vegan + "mel" (mel de abelha)           -> troca "mel" por "xarope de ácer"
  *
  * É idempotente: correr várias vezes não duplica correções.
  *
@@ -49,6 +49,12 @@ function fixSoy(ing: string): string {
   return ing.replace(/molho\s*(de\s*)?soja/i, "molho de soja sem glúten (tamari)");
 }
 
+// Troca "mel" (de abelha) por "xarope de ácer", mantendo a receita vegan.
+// Usa limite de palavra para não apanhar "vermelhas", "caramelo", etc.
+function fixHoney(text: string): string {
+  return text.replace(/\bmel\b/gi, "xarope de ácer");
+}
+
 async function run() {
   const rows = await db.select().from(recipes);
   let changed = 0;
@@ -57,14 +63,16 @@ async function run() {
   for (const r of rows) {
     let tags: string[] = [];
     let ingredients: string[] = [];
+    let steps: string[] = [];
     try {
       tags = JSON.parse(r.tags);
       ingredients = JSON.parse(r.ingredients);
+      steps = JSON.parse(r.steps);
     } catch {
       continue;
     }
 
-    const before = JSON.stringify({ tags, ingredients });
+    const before = JSON.stringify({ tags, ingredients, steps });
     const problems: string[] = [];
 
     if (tags.includes("sem-gluten")) {
@@ -80,17 +88,21 @@ async function run() {
     if (tags.includes("vegan")) {
       const hasHoney = ingredients.some((ing) => hasWord(ing, "mel"));
       if (hasHoney) {
-        tags = tags.filter((t) => t !== "vegan");
-        if (!tags.includes("vegetariano")) tags.push("vegetariano");
-        problems.push(`remove tag vegan (contém mel)`);
+        ingredients = ingredients.map(fixHoney);
+        steps = steps.map(fixHoney);
+        problems.push(`mel -> xarope de ácer (mantém vegan)`);
       }
     }
 
-    const after = JSON.stringify({ tags, ingredients });
+    const after = JSON.stringify({ tags, ingredients, steps });
     if (after !== before) {
       await db
         .update(recipes)
-        .set({ tags: JSON.stringify(tags), ingredients: JSON.stringify(ingredients) })
+        .set({
+          tags: JSON.stringify(tags),
+          ingredients: JSON.stringify(ingredients),
+          steps: JSON.stringify(steps),
+        })
         .where(eq(recipes.id, r.id));
       changed++;
       report.push(`#${r.id} "${r.title}": ${problems.join("; ")}`);
