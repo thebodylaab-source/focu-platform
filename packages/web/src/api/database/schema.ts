@@ -97,6 +97,8 @@ export const globalFoods = sqliteTable("global_foods", {
   fat: real("fat").notNull().default(0),
   servingSize: real("serving_size").notNull().default(100),
   servingUnit: text("serving_unit").notNull().default("g"),
+  // Etiquetas de intolerância (JSON array): sem-gluten | sem-lactose | vegan | vegetariano
+  tags: text("tags").notNull().default("[]"),
   addedByUserId: text("added_by_user_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
@@ -108,6 +110,8 @@ export const shoppingList = sqliteTable("shopping_list", {
   name: text("name").notNull(),
   quantity: text("quantity"), // e.g. "500g", "2 unidades"
   category: text("category").notNull().default("outros"), // legumes | frutas | proteinas | lacticinios | cereais | outros
+  // Etiquetas de intolerância herdadas do alimento (JSON array)
+  tags: text("tags").notNull().default("[]"),
   checked: integer("checked", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });

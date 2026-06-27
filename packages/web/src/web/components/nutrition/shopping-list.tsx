@@ -12,6 +12,33 @@ const CATEGORIES = [
   { id: "outros", label: "Outros", emoji: "🛒" },
 ];
 
+// Filtros de intolerância. Um alimento só aparece/adiciona se respeitar TODAS as
+// restrições selecionadas (segurança — ninguém com intolerância pode receber
+// um alimento errado).
+const RESTRICTIONS = [
+  { id: "sem-gluten", label: "Sem Glúten", emoji: "🌾" },
+  { id: "sem-lactose", label: "Sem Lactose", emoji: "🥛" },
+  { id: "vegan", label: "Vegan", emoji: "🌱" },
+  { id: "vegetariano", label: "Vegetariano", emoji: "🥦" },
+];
+
+function parseTags(v: any): string[] {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") { try { return JSON.parse(v); } catch { return []; } }
+  return [];
+}
+
+// Adivinha a categoria da lista a partir do nome do alimento (para agrupar).
+function guessCategory(name: string): string {
+  const n = name.toLowerCase();
+  if (/(banana|maç|maca|laranja|pera|morango|fruta|uva|manga)/.test(n)) return "frutas";
+  if (/(br[óo]colos|batata|cenoura|espinafre|tomate|legume|courgette|cogumelo|alface|pepino)/.test(n)) return "legumes";
+  if (/(frango|peru|vaca|carne|porco|salm|atum|peixe|ovo|feij|whey|prote)/.test(n)) return "proteinas";
+  if (/(leite|iogurte|queijo|quark|requeij|nata|manteiga)/.test(n)) return "lacticinios";
+  if (/(aveia|arroz|p[ãa]o|massa|cereal|quinoa)/.test(n)) return "cereais";
+  return "outros";
+}
+
 export default function ShoppingList() {
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
@@ -19,6 +46,14 @@ export default function ShoppingList() {
   const [quantity, setQuantity] = useState("");
   const [category, setCategory] = useState("outros");
   const [globalSearch, setGlobalSearch] = useState("");
+  const [restrictions, setRestrictions] = useState<string[]>([]);
+
+  // Catálogo (montra) completo de alimentos partilhados, para navegar e filtrar.
+  const { data: catalogData } = useQuery({
+    queryKey: ["global-foods-all"],
+    queryFn: async () => (await (api.nutrition as any)["global-foods"].$get({ query: {} })).json(),
+  });
+  const catalog = (catalogData as any)?.foods ?? [];
 
   const { data: listData, isLoading } = useQuery({
     queryKey: ["shopping-list"],
@@ -70,14 +105,40 @@ export default function ShoppingList() {
     items: uncheckedItems.filter((i: any) => i.category === cat.id),
   })).filter((g) => g.items.length > 0);
 
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
   const handleAdd = () => {
     if (!name.trim()) return;
-    addMutation.mutate({ name: name.trim(), quantity: quantity.trim() || null, category });
+    addMutation.mutate({ name: name.trim(), quantity: quantity.trim() || null, category, tags: selectedTags });
+    setSelectedTags([]);
   };
 
   const handleSelectGlobal = (food: any) => {
     setName(food.name);
+    setSelectedTags(parseTags(food.tags));
     setGlobalSearch("");
+  };
+
+  const toggleRestriction = (id: string) =>
+    setRestrictions((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
+
+  // Montra filtrada: SÓ alimentos cujas tags incluem todas as restrições ativas.
+  const filteredCatalog = catalog.filter((f: any) => {
+    const tags = parseTags(f.tags);
+    return restrictions.every((r) => tags.includes(r));
+  });
+  const namesInList = new Set(items.map((i: any) => String(i.name).toLowerCase()));
+
+  const addFromCatalog = (food: any) => {
+    const tags = parseTags(food.tags);
+    // Revalidação de segurança antes de adicionar.
+    if (!restrictions.every((r) => tags.includes(r))) return;
+    addMutation.mutate({
+      name: food.name,
+      quantity: null,
+      category: guessCategory(food.name),
+      tags,
+    });
   };
 
   return (
@@ -111,6 +172,66 @@ export default function ShoppingList() {
         <Plus size={18} />
         Adicionar item
       </button>
+
+      {/* Montra de alimentos com filtros de intolerância */}
+      {catalog.length > 0 && (
+        <div className="rounded-2xl p-4" style={{ background: "var(--white)" }}>
+          <p className="text-xs font-black uppercase tracking-wider mb-1" style={{ color: "var(--orange)" }}>
+            🛒 Montra de alimentos
+          </p>
+          <p className="text-xs mb-3" style={{ color: "var(--gray)" }}>
+            Filtra pelas tuas intolerâncias — só aparecem alimentos que as respeitam.
+          </p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {RESTRICTIONS.map((r) => {
+              const active = restrictions.includes(r.id);
+              return (
+                <button key={r.id} onClick={() => toggleRestriction(r.id)}
+                  className="text-xs font-bold px-3 py-1.5 rounded-full cursor-pointer transition-all"
+                  style={active ? { background: "var(--orange)", color: "white" } : { background: "var(--cream)", color: "var(--gray)" }}>
+                  {r.emoji} {r.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {filteredCatalog.length === 0 ? (
+            <p className="text-xs py-3 text-center" style={{ color: "var(--gray)" }}>
+              Nenhum alimento da montra respeita esses filtros.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {filteredCatalog.map((f: any) => {
+                const tags = parseTags(f.tags);
+                const already = namesInList.has(String(f.name).toLowerCase());
+                return (
+                  <div key={f.id} className="rounded-xl p-3 flex items-center gap-2" style={{ background: "var(--cream)" }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate" style={{ color: "var(--black)" }}>{f.name}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {tags.map((t: string) => {
+                          const r = RESTRICTIONS.find((x) => x.id === t);
+                          return r ? (
+                            <span key={t} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "var(--peach)", color: "var(--orange)" }}>
+                              {r.emoji} {r.label}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                    <button onClick={() => addFromCatalog(f)} disabled={already || addMutation.isPending}
+                      className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+                      style={already ? { background: "var(--green)", color: "white" } : { background: "var(--orange)", color: "white" }}
+                      title={already ? "Já na lista" : "Adicionar à lista"}>
+                      {already ? <Check size={16} /> : <Plus size={16} />}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* List */}
       {isLoading ? (
