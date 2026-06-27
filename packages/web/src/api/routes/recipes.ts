@@ -43,6 +43,7 @@ export const recipesRoute = new Hono()
   // Pedir para adicionar uma receita/alimento
   .post("/request", requireAuth, async (c) => {
     const user = c.get("user")!;
+    if ((user as any).role !== "admin") return c.json({ error: "Forbidden" }, 403);
     const body = await c.req.json<{ text: string }>();
     if (!body.text || !body.text.trim()) {
       return c.json({ error: "Escreve o que queres pedir." }, 400);

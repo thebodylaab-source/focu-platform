@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
+import { authClient } from "../../lib/auth";
 import { useState } from "react";
 import { Clock, Users, Flame, Plus, X, Search, ChevronDown, ChevronUp, Sparkles, Wand2 } from "lucide-react";
 
@@ -257,6 +258,8 @@ function RecipeCard({ recipe, matchCount, isAiPreview, onSave, saving }: {
 
 export default function Recipes() {
   const qc = useQueryClient();
+  const { data: session } = authClient.useSession();
+  const isAdmin = ((session?.user as any)?.role as string) === "admin";
   const [search, setSearch] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [activeSpecial, setActiveSpecial] = useState<string[]>([]);
@@ -472,11 +475,13 @@ export default function Recipes() {
               </button>
             ))}
           </div>
-          <button onClick={() => { setShowRequest(true); setRequestSent(false); }}
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full cursor-pointer"
-            style={{ background: "var(--peach)", color: "var(--orange)" }}>
-            <Plus size={14} /> Pedir para adicionar
-          </button>
+          {isAdmin && (
+            <button onClick={() => { setShowRequest(true); setRequestSent(false); }}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full cursor-pointer"
+              style={{ background: "var(--peach)", color: "var(--orange)" }}>
+              <Plus size={14} /> Pedir para adicionar
+            </button>
+          )}
         </div>
       )}
 
