@@ -6,6 +6,7 @@ const indexPath = `${distDir}/index.html`;
 
 const server = Bun.serve({
   port,
+  hostname: "0.0.0.0",
   async fetch(request) {
     const url = new URL(request.url);
 
