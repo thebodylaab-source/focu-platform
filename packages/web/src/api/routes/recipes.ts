@@ -3,12 +3,10 @@ import { db } from "../database";
 import * as schema from "../database/schema";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
-import { generateText, createGateway } from "ai";
+import Anthropic from "@anthropic-ai/sdk";
 
-const gateway = createGateway({
-  baseURL: process.env.AI_GATEWAY_BASE_URL,
-  apiKey: process.env.AI_GATEWAY_API_KEY,
-});
+// IA ligada diretamente à chave Anthropic (independente de qualquer gateway).
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export const recipesRoute = new Hono()
   .get("/", requireAuth, async (c) => {
@@ -46,12 +44,14 @@ Responde SEMPRE em JSON válido com exatamente esta estrutura (sem texto extra):
 Tags disponíveis: sem-gluten, sem-lactose, vegan, vegetariano, sem-acucar, alta-proteina
 Usa português de Portugal.`;
 
-      const { text: raw } = await generateText({
-        model: gateway("anthropic/claude-sonnet-4.6"),
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1024,
         system: systemPrompt,
-        prompt: userPrompt,
-        maxTokens: 1024,
+        messages: [{ role: "user", content: userPrompt }],
       });
+      const block = message.content.find((b) => b.type === "text");
+      const raw = block && block.type === "text" ? block.text : "";
 
       // Extract JSON from response
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
