@@ -8,16 +8,22 @@ import { Flame, ListChecks, ChefHat, ShoppingCart, Calculator } from "lucide-rea
 import { useLocation } from "wouter";
 
 const TABS = [
-  { id: "calculador", label: "Calculador", icon: Calculator },
   { id: "calorias", label: "Contador", icon: Flame },
   { id: "rastreador", label: "Rastreador", icon: ListChecks },
   { id: "receitas", label: "Receitas", icon: ChefHat },
-  { id: "compras", label: "Compras", icon: ShoppingCart },
+  { id: "compras", label: "Lista de Compras", icon: ShoppingCart },
+  { id: "calculador", label: "Calculador", icon: Calculator },
 ];
 
 export default function NutricaoPage() {
   const [location] = useLocation();
-  const defaultTab = location.includes("receitas") ? "receitas" : location.includes("calculador") ? "calculador" : "calculador";
+  const defaultTab = location.includes("receitas")
+    ? "receitas"
+    : location.includes("compras")
+      ? "compras"
+      : location.includes("calculador")
+        ? "calculador"
+        : "calorias";
   const [tab, setTab] = useState(defaultTab);
 
   return (

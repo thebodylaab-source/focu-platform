@@ -6,9 +6,11 @@ import { Plus, Trash2, Search, X, ChevronLeft, ChevronRight } from "lucide-react
 
 const MEALS = [
   { id: "pequeno-almoco", label: "Pequeno-almoço", emoji: "🌅" },
+  { id: "lanche-manha", label: "Lanche da manhã", emoji: "🍏" },
   { id: "almoco", label: "Almoço", emoji: "☀️" },
-  { id: "lanche", label: "Lanche", emoji: "🍎" },
+  { id: "lanche", label: "Lanche da tarde", emoji: "🍎" },
   { id: "jantar", label: "Jantar", emoji: "🌙" },
+  { id: "ceia", label: "Ceia", emoji: "🌛" },
 ];
 
 // Common foods database (PT)
