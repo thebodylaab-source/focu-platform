@@ -116,6 +116,17 @@ export const shoppingList = sqliteTable("shopping_list", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Emails que completaram um pagamento real (escrito SÓ pelo webhook assinado do
+// Stripe). Fonte de verdade para "esta pessoa pagou" — usada para ativar a conta
+// como membro, independentemente da ordem (pagar antes ou depois de criar conta).
+export const paidCustomers = sqliteTable("paid_customers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull().unique(),
+  stripeCustomerId: text("stripe_customer_id"),
+  plan: text("plan"),
+  paidAt: integer("paid_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // User membership status
 export const memberships = sqliteTable("memberships", {
   id: integer("id").primaryKey({ autoIncrement: true }),

@@ -4,8 +4,10 @@ import { useLocation } from "wouter";
 import { Eye, EyeOff, Flame } from "lucide-react";
 
 export default function LoginPage() {
-  const [, navigate] = useLocation();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [location, navigate] = useLocation();
+  // Em /registar ou /register abre logo em modo "criar conta".
+  const startSignup = location.includes("regist");
+  const [mode, setMode] = useState<"login" | "signup">(startSignup ? "signup" : "login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

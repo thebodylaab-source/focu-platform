@@ -32,6 +32,8 @@ export default function App() {
       <Switch>
         <Route path="/loja" component={LojaPage} />
         <Route path="/login" component={LoginPage} />
+        <Route path="/registar" component={LoginPage} />
+        <Route path="/register" component={LoginPage} />
         <Route path="/acesso-pendente" component={AcessoPendentePage} />
         <Route path="/">
           <ProtectedRoute>

@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import Stripe from "stripe";
 import { db } from "../database";
+import * as schema from "../database/schema";
 import { user } from "../database/auth-schema";
 import { eq } from "drizzle-orm";
 
-// Lazy init to avoid module-level failure when env vars not available at import time
+// Lazy init para evitar falha no import quando as env vars não existem.
 let _stripe: Stripe | null = null;
 function getStripe(): Stripe {
   if (!_stripe) {
@@ -13,59 +14,91 @@ function getStripe(): Stripe {
   return _stripe;
 }
 
+const norm = (e?: string | null) => (e ? e.trim().toLowerCase() : "");
+
 export const stripeWebhookRoute = new Hono().post("/", async (c) => {
-  const stripe = getStripe();
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  const body = await c.req.text();
   const sig = c.req.header("stripe-signature");
+  const body = await c.req.text();
 
-  let event: Stripe.Event;
-
-  if (webhookSecret && sig) {
-    try {
-      event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-    } catch (err: any) {
-      console.error("Webhook signature failed:", err.message);
-      return c.json({ error: "Invalid signature" }, 400);
-    }
-  } else {
-    // No secret configured — parse raw (dev/testing only)
-    try {
-      event = JSON.parse(body) as Stripe.Event;
-    } catch {
-      return c.json({ error: "Invalid JSON" }, 400);
-    }
+  // SEGURANÇA: sem secret configurado OU sem assinatura, RECUSAMOS.
+  // (Antes, sem secret, aceitava-se qualquer JSON — permitia forjar pagamentos.)
+  if (!webhookSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET não configurado — webhook recusado.");
+    return c.json({ error: "Webhook não configurado." }, 500);
+  }
+  if (!sig) {
+    return c.json({ error: "Assinatura em falta." }, 400);
   }
 
-  const activateByEmail = async (email: string | null | undefined) => {
-    if (!email) return;
-    const [existing] = await db.select().from(user).where(eq(user.email, email));
-    if (!existing) {
-      console.log(`Stripe webhook: no user found for ${email}`);
-      return;
+  let event: Stripe.Event;
+  try {
+    event = getStripe().webhooks.constructEvent(body, sig, webhookSecret);
+  } catch (err: any) {
+    console.error("Assinatura de webhook inválida:", err.message);
+    return c.json({ error: "Assinatura inválida" }, 400);
+  }
+
+  // Marca o email como pago (fonte de verdade) e ativa a conta se já existir.
+  const grantAccess = async (
+    email: string | null | undefined,
+    opts: { stripeCustomerId?: string | null; plan?: string | null } = {}
+  ) => {
+    const e = norm(email);
+    if (!e) return;
+    await db
+      .insert(schema.paidCustomers)
+      .values({ email: e, stripeCustomerId: opts.stripeCustomerId ?? null, plan: opts.plan ?? null, paidAt: new Date() })
+      .onConflictDoUpdate({
+        target: schema.paidCustomers.email,
+        set: { stripeCustomerId: opts.stripeCustomerId ?? null, plan: opts.plan ?? null, paidAt: new Date() },
+      });
+    const [existing] = await db.select().from(user).where(eq(user.email, e));
+    if (existing && existing.role !== "admin") {
+      await db.update(user).set({ role: "member" }).where(eq(user.email, e));
     }
-    if (existing.role === "admin") return; // never downgrade admin
-    await db.update(user).set({ role: "member" }).where(eq(user.email, email));
-    console.log(`✅ Activated member: ${email}`);
+    console.log(`✅ Acesso concedido: ${e}`);
+  };
+
+  // Revoga o acesso (cancelamento) — remove de paid_customers e volta a pending.
+  const revokeAccess = async (email: string | null | undefined) => {
+    const e = norm(email);
+    if (!e) return;
+    await db.delete(schema.paidCustomers).where(eq(schema.paidCustomers.email, e));
+    const [existing] = await db.select().from(user).where(eq(user.email, e));
+    if (existing && existing.role !== "admin") {
+      await db.update(user).set({ role: "pending" }).where(eq(user.email, e));
+    }
+    console.log(`⛔ Acesso revogado: ${e}`);
   };
 
   switch (event.type) {
     case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      await activateByEmail(session.customer_email ?? session.customer_details?.email);
+      const s = event.data.object as Stripe.Checkout.Session;
+      if (s.payment_status === "paid" || s.status === "complete") {
+        await grantAccess(s.customer_email ?? s.customer_details?.email, {
+          stripeCustomerId: typeof s.customer === "string" ? s.customer : null,
+        });
+      }
       break;
     }
     case "invoice.paid": {
-      const invoice = event.data.object as Stripe.Invoice;
-      await activateByEmail((invoice as any).customer_email);
+      const inv = event.data.object as any;
+      await grantAccess(inv.customer_email, {
+        stripeCustomerId: typeof inv.customer === "string" ? inv.customer : null,
+      });
       break;
     }
-    case "customer.subscription.deleted":
-    case "invoice.payment_failed": {
-      // Optionally downgrade to pending — uncomment if needed
-      // const obj = event.data.object as any;
-      // const email = obj.customer_email;
-      // if (email) await db.update(user).set({ role: "pending" }).where(eq(user.email, email));
+    case "customer.subscription.deleted": {
+      const sub = event.data.object as any;
+      let email: string | null = null;
+      try {
+        const cust = await getStripe().customers.retrieve(sub.customer);
+        email = (cust as any)?.email ?? null;
+      } catch {
+        /* ignore */
+      }
+      await revokeAccess(email);
       break;
     }
     default:
