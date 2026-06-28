@@ -82,7 +82,8 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
       }
       break;
     }
-    case "invoice.paid": {
+    case "invoice.paid":
+    case "invoice.payment_succeeded": {
       const inv = event.data.object as any;
       await grantAccess(inv.customer_email, {
         stripeCustomerId: typeof inv.customer === "string" ? inv.customer : null,
