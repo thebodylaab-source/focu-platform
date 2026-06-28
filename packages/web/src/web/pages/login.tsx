@@ -14,9 +14,14 @@ export default function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [acceptedRgpd, setAcceptedRgpd] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mode === "signup" && !acceptedRgpd) {
+      setError("Tens de aceitar a Política de Privacidade para criar conta.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -127,6 +132,22 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {mode === "signup" && (
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox" checked={acceptedRgpd} onChange={e => setAcceptedRgpd(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 shrink-0 cursor-pointer" style={{ accentColor: "var(--orange)" }}
+                />
+                <span className="text-xs leading-snug" style={{ color: "var(--gray)" }}>
+                  Li e aceito a{" "}
+                  <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline font-semibold" style={{ color: "var(--orange)" }}>
+                    Política de Privacidade
+                  </a>{" "}
+                  e o tratamento dos meus dados de acordo com o RGPD.
+                </span>
+              </label>
+            )}
+
             {error && (
               <div className="text-sm font-medium px-4 py-3 rounded-xl" style={{ background: "#FEE2E2", color: "#DC2626" }}>
                 {error}
@@ -134,8 +155,8 @@ export default function LoginPage() {
             )}
 
             <button
-              type="submit" disabled={loading}
-              className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all duration-200 mt-2 cursor-pointer"
+              type="submit" disabled={loading || (mode === "signup" && !acceptedRgpd)}
+              className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all duration-200 mt-2 cursor-pointer disabled:opacity-60"
               style={{ background: loading ? "var(--orange-lt)" : "var(--orange)" }}
             >
               {loading ? <span className="flex items-center justify-center gap-2"><span className="spinner" />A carregar...</span>

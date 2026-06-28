@@ -10,6 +10,7 @@ export const user = sqliteTable("user", {
     .notNull(),
   image: text("image"),
   role: text("role").notNull().default("pending"), // admin | member | pending
+  rgpdConsentAt: integer("rgpd_consent_at", { mode: "timestamp_ms" }), // data do consentimento RGPD no registo
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
     .notNull(),

@@ -10,6 +10,7 @@ import NutricaoPage from "./pages/nutricao";
 import AcessoPendentePage from "./pages/acesso-pendente";
 import AdminPage from "./pages/admin";
 import LojaPage from "./pages/loja";
+import PrivacidadePage from "./pages/privacidade";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/login" component={LoginPage} />
         <Route path="/registar" component={LoginPage} />
         <Route path="/register" component={LoginPage} />
+        <Route path="/privacidade" component={PrivacidadePage} />
         <Route path="/acesso-pendente" component={AcessoPendentePage} />
         <Route path="/">
           <ProtectedRoute>

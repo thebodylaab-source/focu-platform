@@ -34,6 +34,11 @@ export const auth = betterAuth({
         defaultValue: "pending",
         input: false, // not user-settable
       },
+      rgpdConsentAt: {
+        type: "date",
+        required: false,
+        input: false, // definido no servidor, não pelo cliente
+      },
     },
   },
   databaseHooks: {
@@ -44,7 +49,8 @@ export const auth = betterAuth({
           let role = "pending";
           if (userData.email === ADMIN_EMAIL) role = "admin";
           else if (await hasPaid(userData.email)) role = "member";
-          return { data: { ...userData, role } };
+          // Regista o consentimento RGPD (o registo exige a checkbox no frontend).
+          return { data: { ...userData, role, rgpdConsentAt: new Date() } };
         },
       },
     },
