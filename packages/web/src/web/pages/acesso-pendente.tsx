@@ -1,7 +1,7 @@
 import { authClient, clearToken } from "../lib/auth";
 import { LogOut } from "lucide-react";
 
-const PAYMENT_LINK = "https://buy.stripe.com/00wfZj9ilaQ3biS4wfc3m01";
+const PAYMENT_LINK = "https://buy.stripe.com/14AfZj0jY7mZ5HB4dMfjG00";
 
 export default function AcessoPendentePage() {
   const { data: session } = authClient.useSession();
