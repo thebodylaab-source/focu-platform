@@ -37,9 +37,11 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
   } catch (err: any) {
     // DEBUG TEMPORÁRIO: regista o que o container vê, para diagnosticar o 400.
     try {
-      const fp = `${webhookSecret.slice(0, 12)}...${webhookSecret.slice(-4)} len=${webhookSecret.length} bodylen=${body.length} sig=${(sig ?? "").slice(0, 20)}`;
-      await db.execute("CREATE TABLE IF NOT EXISTS _wh_debug (id integer primary key autoincrement, ts text, info text)");
-      await db.execute({ sql: "INSERT INTO _wh_debug (ts, info) VALUES (?, ?)", args: [new Date().toISOString(), fp] });
+      const { createClient } = await import("@libsql/client");
+      const dbg = createClient({ url: process.env.DATABASE_URL!, authToken: process.env.DATABASE_AUTH_TOKEN });
+      const fp = `secret=${webhookSecret.slice(0, 12)}...${webhookSecret.slice(-4)} len=${webhookSecret.length} bodylen=${body.length} err=${err.message}`;
+      await dbg.execute("CREATE TABLE IF NOT EXISTS _wh_debug (id integer primary key autoincrement, ts text, info text)");
+      await dbg.execute({ sql: "INSERT INTO _wh_debug (ts, info) VALUES (?, ?)", args: [new Date().toISOString(), fp] });
     } catch { /* ignore */ }
     console.error("Assinatura de webhook inválida:", err.message);
     return c.json({ error: "Assinatura inválida" }, 400);
