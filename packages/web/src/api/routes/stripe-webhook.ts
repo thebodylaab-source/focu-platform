@@ -33,16 +33,10 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
 
   let event: Stripe.Event;
   try {
-    event = getStripe().webhooks.constructEvent(body, sig, webhookSecret);
+    // constructEventAsync (não a versão síncrona): o runtime Bun usa Web Crypto,
+    // que é assíncrono. A versão síncrona lança "SubtleCryptoProvider...".
+    event = await getStripe().webhooks.constructEventAsync(body, sig, webhookSecret);
   } catch (err: any) {
-    // DEBUG TEMPORÁRIO: regista o que o container vê, para diagnosticar o 400.
-    try {
-      const { createClient } = await import("@libsql/client");
-      const dbg = createClient({ url: process.env.DATABASE_URL!, authToken: process.env.DATABASE_AUTH_TOKEN });
-      const fp = `secret=${webhookSecret.slice(0, 12)}...${webhookSecret.slice(-4)} len=${webhookSecret.length} bodylen=${body.length} err=${err.message}`;
-      await dbg.execute("CREATE TABLE IF NOT EXISTS _wh_debug (id integer primary key autoincrement, ts text, info text)");
-      await dbg.execute({ sql: "INSERT INTO _wh_debug (ts, info) VALUES (?, ?)", args: [new Date().toISOString(), fp] });
-    } catch { /* ignore */ }
     console.error("Assinatura de webhook inválida:", err.message);
     return c.json({ error: "Assinatura inválida" }, 400);
   }
