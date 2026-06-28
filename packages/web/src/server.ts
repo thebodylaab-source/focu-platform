@@ -15,7 +15,9 @@ const server = Bun.serve({
       return new Response("ok", { status: 200 });
     }
 
-    if (url.pathname.startsWith("/api")) {
+    // API e webhooks (Stripe) são tratados pelo Hono. O webhook do Stripe vive
+    // em /webhook/stripe (fora de /api), por isso tem de ser encaminhado também.
+    if (url.pathname.startsWith("/api") || url.pathname.startsWith("/webhook")) {
       return app.fetch(request);
     }
 
