@@ -413,7 +413,7 @@ export default function Recipes() {
             className="w-full pl-11 pr-4 py-3 rounded-xl text-sm border outline-none"
             style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
         </div>
-        <button onClick={() => { setShowAI(true); setAiError(""); setAiPrompt(""); }}
+        <button onClick={() => { if (haveIngredients.length > 0) { generateFromIngredients(); } else { setShowAI(true); setAiError(""); setAiPrompt(""); } }}
           className="flex items-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white cursor-pointer"
           style={{ background: "var(--orange)" }}>
           <Sparkles size={16} />
