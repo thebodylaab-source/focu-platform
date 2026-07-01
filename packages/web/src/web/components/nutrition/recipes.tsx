@@ -441,7 +441,7 @@ export default function Recipes() {
 
       {/* Vista Lista / Descobrir */}
       {!ingredientMode && (
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <div className="flex rounded-full p-1" style={{ background: "var(--white)" }}>
             {([["lista", "Lista"], ["descobrir", "Descobrir"]] as const).map(([id, label]) => (
               <button key={id} onClick={() => setViewMode(id)}
