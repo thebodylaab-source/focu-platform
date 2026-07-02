@@ -413,7 +413,7 @@ export default function Recipes() {
             className="w-full pl-11 pr-4 py-3 rounded-xl text-sm border outline-none"
             style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
         </div>
-        <button onClick={() => { setShowAI(true); setAiError(""); setAiPrompt(""); }}
+        <button onClick={() => { if (haveIngredients.length > 0) { generateFromIngredients(); } else { setShowAI(true); setAiError(""); setAiPrompt(""); } }}
           className="flex items-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm text-white cursor-pointer"
           style={{ background: "var(--orange)" }}>
           <Sparkles size={16} />
@@ -441,7 +441,7 @@ export default function Recipes() {
 
       {/* Vista Lista / Descobrir */}
       {!ingredientMode && (
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <div className="flex rounded-full p-1" style={{ background: "var(--white)" }}>
             {([["lista", "Lista"], ["descobrir", "Descobrir"]] as const).map(([id, label]) => (
               <button key={id} onClick={() => setViewMode(id)}
