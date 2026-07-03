@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Clock, Users, Flame, Plus, X, Search, ChevronDown, ChevronUp, Sparkles, Loader2 } from "lucide-react";
+import { Clock, Users, Flame, Plus, X, Search, ChevronDown, ChevronUp, Sparkles, Loader2, Heart } from "lucide-react";
 import { getToken } from "../../lib/auth";
 
 const FILTERS = [
@@ -89,7 +89,7 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 };
 
-function RecipeCard({ recipe }: { recipe: any }) {
+function RecipeCard({ recipe, fav = false, onToggleFav }: { recipe: any; fav?: boolean; onToggleFav?: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const baseServings = recipe.servings && recipe.servings > 0 ? recipe.servings : 1;
   const [portions, setPortions] = useState(baseServings);
@@ -98,13 +98,42 @@ function RecipeCard({ recipe }: { recipe: any }) {
   const ingredients = typeof recipe.ingredients === "string" ? JSON.parse(recipe.ingredients) : (recipe.ingredients ?? []);
   const steps = typeof recipe.steps === "string" ? JSON.parse(recipe.steps) : (recipe.steps ?? []);
 
+  // Escala um valor nutricional pelo fator de porções.
+  const scaled = (v: number | null) => (v == null ? null : Math.round(v * factor));
+
+  const [addingToList, setAddingToList] = useState<"idle" | "adding" | "done">("idle");
+  const addIngredientsToShoppingList = async () => {
+    setAddingToList("adding");
+    try {
+      for (const ing of ingredients) {
+        await fetch("/api/nutrition/shopping", {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ name: scaleIngredient(ing, factor), category: "outros", tags: "[]" }),
+        });
+      }
+      setAddingToList("done");
+      setTimeout(() => setAddingToList("idle"), 2500);
+    } catch {
+      setAddingToList("idle");
+    }
+  };
+
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--white)" }}>
       <div className="h-3" style={{ background: "var(--orange)" }} />
       <div className="p-5">
         <div className="flex items-start justify-between gap-2 mb-3">
           <h3 className="font-black text-base leading-tight" style={{ color: "var(--black)" }}>{recipe.title}</h3>
-          <span className="text-2xl shrink-0">{tags.includes("vegan") ? "🌱" : tags.includes("alta-proteina") ? "💪" : "🍽️"}</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onToggleFav && (
+              <button onClick={onToggleFav} className="cursor-pointer transition-transform hover:scale-110"
+                style={{ color: fav ? "#DC2626" : "var(--gray)" }}>
+                <Heart size={18} fill={fav ? "#DC2626" : "none"} />
+              </button>
+            )}
+            <span className="text-2xl">{tags.includes("vegan") ? "🌱" : tags.includes("alta-proteina") ? "💪" : "🍽️"}</span>
+          </div>
         </div>
         {recipe.description && <p className="text-xs mb-3" style={{ color: "var(--gray)" }}>{recipe.description}</p>}
 
@@ -119,14 +148,14 @@ function RecipeCard({ recipe }: { recipe: any }) {
           </div>
           {recipe.calories && (
             <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--orange)" }}>
-              <Flame size={13} />{recipe.calories} kcal
+              <Flame size={13} />{scaled(recipe.calories)} kcal
             </div>
           )}
         </div>
 
         {recipe.protein && (
           <div className="grid grid-cols-3 gap-2 mb-3">
-            {[["💪", recipe.protein + "g", "Proteína"], ["🌾", recipe.carbs + "g", "Hidratos"], ["🥑", recipe.fat + "g", "Gorduras"]].map(([e, v, l]) => (
+            {[["💪", scaled(recipe.protein) + "g", "Proteína"], ["🌾", scaled(recipe.carbs) + "g", "Hidratos"], ["🥑", scaled(recipe.fat) + "g", "Gorduras"]].map(([e, v, l]) => (
               <div key={l as string} className="text-center py-2 rounded-xl" style={{ background: "var(--cream)" }}>
                 <p className="text-sm">{e}</p>
                 <p className="text-xs font-bold" style={{ color: "var(--black)" }}>{v}</p>
@@ -183,6 +212,18 @@ function RecipeCard({ recipe }: { recipe: any }) {
                   </li>
                 ))}
               </ul>
+              <button
+                onClick={addIngredientsToShoppingList}
+                disabled={addingToList !== "idle"}
+                className="mt-3 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl cursor-pointer border transition-opacity hover:opacity-80 disabled:opacity-60"
+                style={addingToList === "done"
+                  ? { background: "#DCFCE7", color: "#16A34A", borderColor: "#DCFCE7" }
+                  : { borderColor: "var(--orange)", color: "var(--orange)", background: "transparent" }}
+              >
+                {addingToList === "done" ? "✓ Adicionado à lista de compras"
+                  : addingToList === "adding" ? <><Loader2 size={13} className="animate-spin" /> A adicionar...</>
+                  : <><Plus size={13} /> Adicionar à lista de compras</>}
+              </button>
             </div>
             <div>
               <h4 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: "var(--black)" }}>Modo de preparação</h4>
@@ -233,6 +274,28 @@ export default function Recipes() {
   const dbRecipes = (data as any)?.recipes ?? [];
   const allRecipes = [...DEFAULT_RECIPES, ...dbRecipes];
 
+  const [onlyFavs, setOnlyFavs] = useState(false);
+  const { data: favData } = useQuery({
+    queryKey: ["favorites", "recipe"],
+    queryFn: async () => {
+      const res = await fetch("/api/favorites?kind=recipe", { headers: authHeaders() });
+      return res.json() as Promise<{ favorites: Array<{ refId: number }> }>;
+    },
+  });
+  const favIds = new Set((favData?.favorites ?? []).map(f => f.refId));
+  const toggleFav = useMutation({
+    mutationFn: async (refId: number) => {
+      const res = await fetch("/api/favorites/toggle", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ kind: "recipe", refId }),
+      });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["favorites", "recipe"] }),
+  });
+  const cardProps = (r: any) => ({ fav: favIds.has(r.id), onToggleFav: () => toggleFav.mutate(r.id) });
+
   const toggleFilter = (id: string) => {
     setActiveFilters(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   };
@@ -241,7 +304,8 @@ export default function Recipes() {
     const tags = typeof r.tags === "string" ? JSON.parse(r.tags) : (r.tags ?? []);
     const matchSearch = !search || r.title.toLowerCase().includes(search.toLowerCase());
     const matchFilters = activeFilters.length === 0 || activeFilters.every(f => tags.includes(f));
-    return matchSearch && matchFilters;
+    const matchFav = !onlyFavs || favIds.has(r.id);
+    return matchSearch && matchFilters && matchFav;
   });
 
   // Pesquisa por ingredientes: conta quantos ingredientes que o utilizador tem
@@ -428,6 +492,11 @@ export default function Recipes() {
 
       {/* Filters */}
       <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <button onClick={() => setOnlyFavs(!onlyFavs)}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all"
+          style={onlyFavs ? { background: "#DC2626", color: "white" } : { background: "var(--white)", color: "var(--gray)", border: "1px solid var(--gray-lt)" }}>
+          <Heart size={12} fill={onlyFavs ? "white" : "none"} /> Favoritos
+        </button>
         {FILTERS.map(f => (
           <button key={f.id} onClick={() => toggleFilter(f.id)}
             className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all"
@@ -475,7 +544,7 @@ export default function Recipes() {
                   <h3 className="text-base font-black mb-3" style={{ color: "var(--black)" }}>{sec.emoji} {sec.label}</h3>
                   <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
                     {sec.items.map((r: any) => (
-                      <div key={r.id} className="shrink-0 w-[280px]"><RecipeCard recipe={r} /></div>
+                      <div key={r.id} className="shrink-0 w-[280px]"><RecipeCard recipe={r} {...cardProps(r)} /></div>
                     ))}
                   </div>
                 </div>
@@ -485,7 +554,7 @@ export default function Recipes() {
         })()
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {filtered.map((r: any) => <RecipeCard key={r.id} recipe={r} />)}
+          {filtered.map((r: any) => <RecipeCard key={r.id} recipe={r} {...cardProps(r)} />)}
         </div>
       )}
 

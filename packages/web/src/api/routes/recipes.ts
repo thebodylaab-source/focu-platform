@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireAdmin } from "../middleware/auth";
 import Anthropic from "@anthropic-ai/sdk";
 
 // IA ligada diretamente à chave Anthropic (independente de qualquer gateway).
@@ -129,7 +129,7 @@ Usa português de Portugal.`;
       return c.json({ error: e.message || "Erro interno" }, 500);
     }
   })
-  .delete("/:id", requireAuth, async (c) => {
+  .delete("/:id", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     await db.delete(schema.recipes).where(eq(schema.recipes.id, id));
     return c.json({ ok: true }, 200);

@@ -127,6 +127,15 @@ export const paidCustomers = sqliteTable("paid_customers", {
   paidAt: integer("paid_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Favoritos do utilizador (vídeos e receitas)
+export const favorites = sqliteTable("favorites", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  kind: text("kind").notNull(), // video | recipe
+  refId: integer("ref_id").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // Registo de ações de administração (quem mudou o quê e quando)
 export const adminAuditLog = sqliteTable("admin_audit_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),
