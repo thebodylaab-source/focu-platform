@@ -127,6 +127,17 @@ export const paidCustomers = sqliteTable("paid_customers", {
   paidAt: integer("paid_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Registo de ações de administração (quem mudou o quê e quando)
+export const adminAuditLog = sqliteTable("admin_audit_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  adminId: text("admin_id").notNull(),
+  adminName: text("admin_name").notNull(),
+  targetUserId: text("target_user_id").notNull(),
+  targetEmail: text("target_email").notNull(),
+  action: text("action").notNull(), // ex: "role: pending → member"
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // User membership status
 export const memberships = sqliteTable("memberships", {
   id: integer("id").primaryKey({ autoIncrement: true }),
