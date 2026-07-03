@@ -8,6 +8,48 @@ import Anthropic from "@anthropic-ai/sdk";
 // IA ligada diretamente à chave Anthropic (independente de qualquer gateway).
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Rate limit em memória: máx. 10 gerações por utilizador por hora.
+// Reinicia com o processo — suficiente para travar abuso de custos da API.
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60 * 60 * 1000;
+const generationLog = new Map<string, number[]>();
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const times = (generationLog.get(userId) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (times.length >= RATE_LIMIT) {
+    generationLog.set(userId, times);
+    return false;
+  }
+  times.push(now);
+  generationLog.set(userId, times);
+  return true;
+}
+
+// Extrai o primeiro objeto JSON completo (chavetas equilibradas, ignora strings).
+// Mais robusto que regex gananciosa quando a resposta traz texto à volta.
+function extractJson(raw: string): any | null {
+  const cleaned = raw.replace(/```(?:json)?/g, "");
+  const start = cleaned.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (esc) { esc = false; continue; }
+    if (ch === "\\") { esc = true; continue; }
+    if (ch === '"') inStr = !inStr;
+    if (inStr) continue;
+    if (ch === "{") depth++;
+    if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        try { return JSON.parse(cleaned.slice(start, i + 1)); } catch { return null; }
+      }
+    }
+  }
+  return null;
+}
+
 export const recipesRoute = new Hono()
   .get("/", requireAuth, async (c) => {
     const rows = await db.select().from(schema.recipes);
@@ -15,11 +57,29 @@ export const recipesRoute = new Hono()
   })
   .post("/", requireAuth, async (c) => {
     const body = await c.req.json();
-    const [recipe] = await db.insert(schema.recipes).values(body).returning();
+    if (!body.title || typeof body.title !== "string" || !body.title.trim()) {
+      return c.json({ message: "Título obrigatório." }, 400);
+    }
+    const ingredients = (() => { try { return JSON.parse(body.ingredients ?? "[]"); } catch { return []; } })();
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+      return c.json({ message: "A receita precisa de pelo menos um ingrediente." }, 400);
+    }
+    const num = (v: any) => { const n = parseFloat(v); return Number.isFinite(n) && n >= 0 ? n : null; };
+    const [recipe] = await db.insert(schema.recipes).values({
+      ...body,
+      calories: num(body.calories),
+      protein: num(body.protein),
+      carbs: num(body.carbs),
+      fat: num(body.fat),
+    }).returning();
     return c.json({ recipe }, 201);
   })
   .post("/generate", requireAuth, async (c) => {
     try {
+      const user = c.get("user")!;
+      if (!checkRateLimit(user.id)) {
+        return c.json({ error: "Limite de gerações atingido (10 por hora). Tenta mais tarde." }, 429);
+      }
       const { prompt } = await c.req.json();
       const userPrompt = prompt || "Cria uma receita saudável e equilibrada para uma mulher a fazer um desafio de glúteos";
 
@@ -53,12 +113,11 @@ Usa português de Portugal.`;
       const block = message.content.find((b) => b.type === "text");
       const raw = block && block.type === "text" ? block.text : "";
 
-      // Extract JSON from response
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return c.json({ error: "Resposta inválida da IA" }, 500);
-      
-      const recipe = JSON.parse(jsonMatch[0]);
-      
+      const recipe = extractJson(raw);
+      if (!recipe || typeof recipe.title !== "string") {
+        return c.json({ error: "Resposta inválida da IA. Tenta novamente." }, 500);
+      }
+
       // Normalize arrays to JSON strings
       recipe.ingredients = JSON.stringify(Array.isArray(recipe.ingredients) ? recipe.ingredients : []);
       recipe.steps = JSON.stringify(Array.isArray(recipe.steps) ? recipe.steps : []);

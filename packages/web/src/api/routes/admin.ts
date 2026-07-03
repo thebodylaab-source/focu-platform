@@ -27,6 +27,10 @@ export const adminRoute = new Hono()
     if (!["admin", "member", "pending"].includes(role)) {
       return c.json({ error: "Invalid role" }, 400);
     }
+    // Um admin não se pode despromover a si próprio (evita lockout do painel).
+    if (id === me.id && role !== "admin") {
+      return c.json({ error: "Não podes remover o teu próprio acesso de admin." }, 400);
+    }
     const [updated] = await db.update(user).set({ role }).where(eq(user.id, id)).returning();
     return c.json({ user: updated });
   });

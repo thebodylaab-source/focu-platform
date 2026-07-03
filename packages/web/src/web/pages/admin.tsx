@@ -18,6 +18,7 @@ const ROLE_LABELS: Record<string, { label: string; color: string; icon: React.Re
 export default function AdminPage() {
   const qc = useQueryClient();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ id: string; name: string; role: string } | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-users"],
@@ -138,7 +139,7 @@ export default function AdminPage() {
                     {u.role !== "pending" && u.role !== "admin" && (
                       <button
                         disabled={loadingId === u.id}
-                        onClick={() => changeRole.mutate({ id: u.id, role: "pending" })}
+                        onClick={() => setConfirmAction({ id: u.id, name: u.name, role: "pending" })}
                         className="text-xs px-3 py-1.5 rounded-xl font-semibold cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-40"
                         style={{ background: "#FEF3C7", color: "#D97706" }}
                       >
@@ -152,6 +153,34 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* Confirmação de suspensão */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style={{ background: "var(--white)" }}>
+            <h3 className="text-lg font-black mb-2" style={{ color: "var(--black)" }}>Suspender acesso?</h3>
+            <p className="text-sm mb-6" style={{ color: "var(--gray)" }}>
+              <strong>{confirmAction.name}</strong> vai perder o acesso à plataforma imediatamente e voltar ao estado pendente.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold cursor-pointer border"
+                style={{ borderColor: "var(--gray-lt)", color: "var(--gray)" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { changeRole.mutate({ id: confirmAction.id, role: confirmAction.role }); setConfirmAction(null); }}
+                className="flex-1 py-3 rounded-xl text-sm font-bold text-white cursor-pointer"
+                style={{ background: "#D97706" }}
+              >
+                Suspender
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

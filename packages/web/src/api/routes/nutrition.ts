@@ -4,6 +4,20 @@ import * as schema from "../database/schema";
 import { eq, and, like, or } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 
+// Valida um alimento antes de entrar na base (pessoal ou global).
+// Evita dados absurdos que envenenam as contagens de toda a gente.
+function validateFood(body: any): string | null {
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (name.length < 2 || name.length > 60) return "Nome do alimento inválido (2–60 caracteres).";
+  const cal = parseFloat(body.calories);
+  if (!Number.isFinite(cal) || cal < 0 || cal > 1000) return "Calorias inválidas (0–1000 por porção).";
+  for (const macro of ["protein", "carbs", "fat"]) {
+    const v = parseFloat(body[macro] ?? 0);
+    if (!Number.isFinite(v) || v < 0 || v > 200) return "Macros inválidos (0–200g por porção).";
+  }
+  return null;
+}
+
 export const nutritionRoute = new Hono()
   // --- Calorie Goal ---
   .get("/goal", requireAuth, async (c) => {
@@ -55,6 +69,8 @@ export const nutritionRoute = new Hono()
   .post("/foods", requireAuth, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
+    const invalid = validateFood(body);
+    if (invalid) return c.json({ message: invalid }, 400);
     const [food] = await db.insert(schema.foodItems).values({ userId: user.id, ...body }).returning();
     return c.json({ food }, 201);
   })
@@ -79,6 +95,8 @@ export const nutritionRoute = new Hono()
   .post("/global-foods", requireAuth, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
+    const invalid = validateFood(body);
+    if (invalid) return c.json({ message: invalid }, 400);
     // upsert by name (ignore if already exists)
     try {
       const [food] = await db.insert(schema.globalFoods)
