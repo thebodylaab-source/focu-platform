@@ -127,6 +127,14 @@ export const paidCustomers = sqliteTable("paid_customers", {
   paidAt: integer("paid_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Check-ins de treino (um por dia) — alimenta o streak e o calendário semanal
+export const workoutCheckins = sqliteTable("workout_checkins", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  checkinDate: text("checkin_date").notNull(), // YYYY-MM-DD
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // Favoritos do utilizador (vídeos e receitas)
 export const favorites = sqliteTable("favorites", {
   id: integer("id").primaryKey({ autoIncrement: true }),

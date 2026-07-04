@@ -10,6 +10,7 @@ import { membershipRoute } from "./routes/membership";
 import { stripeWebhookRoute } from "./routes/stripe-webhook";
 import { adminRoute } from "./routes/admin";
 import { favoritesRoute } from "./routes/favorites";
+import { progressRoute } from "./routes/progress";
 
 const corsMiddleware = cors({ origin: (origin) => origin ?? "*", credentials: true, exposeHeaders: ["set-auth-token"] });
 
@@ -24,7 +25,8 @@ const apiApp = new Hono()
   .route("/recipes", recipesRoute)
   .route("/membership", membershipRoute)
   .route("/admin", adminRoute)
-  .route("/favorites", favoritesRoute);
+  .route("/favorites", favoritesRoute)
+  .route("/progress", progressRoute);
 
 // Root app
 const app = new Hono()

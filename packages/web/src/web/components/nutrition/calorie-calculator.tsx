@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Calculator, ChevronRight, RotateCcw, Info } from "lucide-react";
+import { Calculator, ChevronRight, RotateCcw, Info, Save } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getToken } from "../../lib/auth";
 
 const ACTIVITY_LEVELS = [
   { id: "sedentary", label: "Sedentário", desc: "Sem exercício ou muito pouco", multiplier: 1.2 },
@@ -103,7 +105,33 @@ export default function CalorieCalculator() {
     setStep("result");
   };
 
-  const reset = () => { setStep("form"); setResult(null); };
+  const reset = () => { setStep("form"); setResult(null); setSaveState("idle"); };
+
+  const qc = useQueryClient();
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "done" | "error">("idle");
+
+  // Guarda o resultado como objetivo diário (usado pelo Contador e Relatório).
+  const saveAsGoal = async () => {
+    if (!result) return;
+    setSaveState("saving");
+    try {
+      const res = await fetch("/api/nutrition/goal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({
+          dailyCalories: result.target,
+          proteinGoal: result.protein,
+          carbsGoal: result.carbs,
+          fatGoal: result.fat,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      qc.invalidateQueries({ queryKey: ["calorie-goal"] });
+      setSaveState("done");
+    } catch {
+      setSaveState("error");
+    }
+  };
 
   const goalObj = GOALS.find(g => g.id === goal)!;
   const canCalculate = age && weight && height;
@@ -177,6 +205,25 @@ export default function CalorieCalculator() {
             ))}
           </div>
         </div>
+
+        {/* Guardar como objetivo */}
+        <button
+          onClick={saveAsGoal}
+          disabled={saveState === "saving" || saveState === "done"}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-70"
+          style={saveState === "done" ? { background: "#DCFCE7", color: "#16A34A" } : { background: "var(--orange)", color: "white" }}
+        >
+          <Save size={16} />
+          {saveState === "done" ? "✓ Guardado como objetivo diário" : saveState === "saving" ? "A guardar..." : "Usar como objetivo diário"}
+        </button>
+        {saveState === "error" && (
+          <p className="text-xs text-center text-red-500">Erro ao guardar. Tenta novamente.</p>
+        )}
+        {saveState === "done" && (
+          <p className="text-xs text-center" style={{ color: "var(--gray)" }}>
+            O Contador de Calorias e o Relatório Semanal passam a usar estes valores.
+          </p>
+        )}
 
         {/* Sleep note */}
         {sleep !== "7-8" && (

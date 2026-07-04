@@ -3,6 +3,7 @@ import { api } from "../../lib/api";
 import { getToken } from "../../lib/auth";
 import { useState } from "react";
 import { Plus, Trash2, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { WeeklyReport } from "./weekly-report";
 
 const MEALS = [
   { id: "pequeno-almoco", label: "Pequeno-almoço", emoji: "🌅" },
@@ -157,6 +158,11 @@ export default function FoodTracker() {
 
   return (
     <div className="space-y-4">
+      {/* Relatório semanal */}
+      <div className="flex justify-end">
+        <WeeklyReport />
+      </div>
+
       {/* Date navigator */}
       <div className="flex items-center gap-3 rounded-2xl p-4" style={{ background: "var(--white)" }}>
         <button onClick={prevDay} className="p-2 rounded-xl cursor-pointer" style={{ background: "var(--cream)" }}>
