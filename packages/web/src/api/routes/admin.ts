@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import { user } from "../database/auth-schema";
-import { eq, like, or, desc, sql } from "drizzle-orm";
+import { eq, like, or, desc, sql, gte } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 
 // Middleware: admin only
@@ -46,6 +46,52 @@ export const adminRoute = new Hono()
     };
     return c.json({ stats });
   })
+  // GET /api/admin/metrics — séries temporais para o dashboard de métricas
+  .get("/metrics", requireAdmin, async (c) => {
+    const me = c.get("user")!;
+    if (me.role !== "admin") return c.json({ error: "Forbidden" }, 403);
+
+    const days = 30;
+    const since = new Date();
+    since.setDate(since.getDate() - (days - 1));
+    since.setHours(0, 0, 0, 0);
+    const sinceStr = since.toISOString().split("T")[0];
+
+    const [allUsers, logs, checkins, pushSubs] = await Promise.all([
+      db.select({ createdAt: user.createdAt }).from(user),
+      db.select({ logDate: schema.foodLogs.logDate, userId: schema.foodLogs.userId }).from(schema.foodLogs)
+        .where(gte(schema.foodLogs.logDate, sinceStr)),
+      db.select({ checkinDate: schema.workoutCheckins.checkinDate, userId: schema.workoutCheckins.userId }).from(schema.workoutCheckins)
+        .where(gte(schema.workoutCheckins.checkinDate, sinceStr)),
+      db.select({ id: schema.pushSubscriptions.id }).from(schema.pushSubscriptions),
+    ]);
+
+    const dayKeys = Array.from({ length: days }, (_, i) => {
+      const d = new Date(since);
+      d.setDate(since.getDate() + i);
+      return d.toISOString().split("T")[0];
+    });
+
+    const series = dayKeys.map((day) => ({
+      day,
+      signups: allUsers.filter((u) => u.createdAt && u.createdAt.toISOString().split("T")[0] === day).length,
+      foodLogs: logs.filter((l) => l.logDate === day).length,
+      checkins: checkins.filter((ch) => ch.checkinDate === day).length,
+    }));
+
+    // Utilizadores ativos: com registo de comida ou treino nos últimos 7 dias
+    const d7 = dayKeys.slice(-7);
+    const activeSet = new Set<string>();
+    for (const l of logs) if (d7.includes(l.logDate)) activeSet.add(l.userId);
+    for (const ch of checkins) if (d7.includes(ch.checkinDate)) activeSet.add(ch.userId);
+
+    return c.json({
+      series,
+      active7d: activeSet.size,
+      pushSubscribers: pushSubs.length,
+    });
+  })
+  // POST /api/admin/broadcast — envia push a todos (delegado na rota /push)
   // GET /api/admin/audit — últimas ações de administração
   .get("/audit", requireAdmin, async (c) => {
     const me = c.get("user")!;

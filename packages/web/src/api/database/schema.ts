@@ -127,6 +127,16 @@ export const paidCustomers = sqliteTable("paid_customers", {
   paidAt: integer("paid_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Subscrições Web Push (uma por browser/dispositivo)
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // Check-ins de treino (um por dia) — alimenta o streak e o calendário semanal
 export const workoutCheckins = sqliteTable("workout_checkins", {
   id: integer("id").primaryKey({ autoIncrement: true }),

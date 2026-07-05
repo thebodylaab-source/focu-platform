@@ -11,6 +11,7 @@ import { stripeWebhookRoute } from "./routes/stripe-webhook";
 import { adminRoute } from "./routes/admin";
 import { favoritesRoute } from "./routes/favorites";
 import { progressRoute } from "./routes/progress";
+import { pushRoute } from "./routes/push";
 
 const corsMiddleware = cors({ origin: (origin) => origin ?? "*", credentials: true, exposeHeaders: ["set-auth-token"] });
 
@@ -26,7 +27,8 @@ const apiApp = new Hono()
   .route("/membership", membershipRoute)
   .route("/admin", adminRoute)
   .route("/favorites", favoritesRoute)
-  .route("/progress", progressRoute);
+  .route("/progress", progressRoute)
+  .route("/push", pushRoute);
 
 // Root app
 const app = new Hono()

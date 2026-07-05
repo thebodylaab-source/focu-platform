@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { authClient, getToken } from "../lib/auth";
 import { Play, FileText, Apple, Flame, ChevronRight, CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
+import { PushToggle } from "../components/push-toggle";
 
 export default function DashboardPage() {
   const { data: session } = authClient.useSession();
@@ -68,6 +69,9 @@ export default function DashboardPage() {
           <p className="text-white/70 text-sm max-w-md">
             Continua o teu progresso. Cada treino conta. Tens acesso completo a todos os conteúdos do programa.
           </p>
+          <div className="mt-4">
+            <PushToggle />
+          </div>
         </div>
       </div>
 

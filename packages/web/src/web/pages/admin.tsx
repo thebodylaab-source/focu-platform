@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getToken } from "../lib/auth";
-import { Shield, Users, CheckCircle, Clock, Crown, Search, History, ChevronLeft, ChevronRight } from "lucide-react";
+import { Shield, Users, CheckCircle, Clock, Crown, Search, History, ChevronLeft, ChevronRight, BarChart3, Send, Bell } from "lucide-react";
 
 const ROLE_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   admin: { label: "Admin", color: "#7C3AED", icon: <Crown size={14} /> },
@@ -18,6 +18,41 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [showAudit, setShowAudit] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(false);
+  const [broadcast, setBroadcast] = useState({ title: "", body: "" });
+  const [broadcastState, setBroadcastState] = useState<"idle" | "sending" | string>("idle");
+
+  const { data: metricsData } = useQuery({
+    queryKey: ["admin-metrics"],
+    enabled: showMetrics,
+    queryFn: async () => {
+      const res = await fetch("/api/admin/metrics", { headers: authHeaders() });
+      if (!res.ok) throw new Error("Forbidden");
+      return res.json() as Promise<{
+        series: Array<{ day: string; signups: number; foodLogs: number; checkins: number }>;
+        active7d: number;
+        pushSubscribers: number;
+      }>;
+    },
+  });
+
+  const sendBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBroadcastState("sending");
+    try {
+      const res = await fetch("/api/push/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ title: broadcast.title, body: broadcast.body, url: "/" }),
+      });
+      const data = await res.json() as any;
+      if (!res.ok) throw new Error(data.error || data.message || "Erro");
+      setBroadcastState(`✅ Enviada a ${data.sent} de ${data.total} dispositivos.`);
+      setBroadcast({ title: "", body: "" });
+    } catch (err: any) {
+      setBroadcastState(`Erro: ${err.message}`);
+    }
+  };
 
   const { data: statsData } = useQuery({
     queryKey: ["admin-stats"],
@@ -87,13 +122,22 @@ export default function AdminPage() {
             <p className="text-sm" style={{ color: "var(--gray)" }}>Gestão de utilizadores FO.CU</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowAudit(!showAudit)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer border transition-opacity hover:opacity-80"
-          style={showAudit ? { background: "var(--orange)", color: "white", borderColor: "var(--orange)" } : { borderColor: "var(--gray-lt)", color: "var(--gray)" }}
-        >
-          <History size={16} /> Histórico
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowMetrics(!showMetrics)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer border transition-opacity hover:opacity-80"
+            style={showMetrics ? { background: "var(--orange)", color: "white", borderColor: "var(--orange)" } : { borderColor: "var(--gray-lt)", color: "var(--gray)" }}
+          >
+            <BarChart3 size={16} /> Métricas
+          </button>
+          <button
+            onClick={() => setShowAudit(!showAudit)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer border transition-opacity hover:opacity-80"
+            style={showAudit ? { background: "var(--orange)", color: "white", borderColor: "var(--orange)" } : { borderColor: "var(--gray-lt)", color: "var(--gray)" }}
+          >
+            <History size={16} /> Histórico
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -112,6 +156,93 @@ export default function AdminPage() {
               <p className="text-sm mt-1" style={{ color: "var(--gray)" }}>{label}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Métricas de engagement */}
+      {showMetrics && (
+        <div className="space-y-4">
+          {metricsData && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-2xl p-5 shadow-sm" style={{ background: "var(--white)" }}>
+                <p className="text-3xl font-black" style={{ color: "#0891B2" }}>{metricsData.active7d}</p>
+                <p className="text-sm mt-1" style={{ color: "var(--gray)" }}>Ativos últimos 7 dias</p>
+              </div>
+              <div className="rounded-2xl p-5 shadow-sm" style={{ background: "var(--white)" }}>
+                <p className="text-3xl font-black" style={{ color: "#7C3AED" }}>{metricsData.pushSubscribers}</p>
+                <p className="text-sm mt-1" style={{ color: "var(--gray)" }}>Dispositivos com notificações</p>
+              </div>
+            </div>
+          )}
+
+          {/* Gráficos 30 dias */}
+          {metricsData && ([
+            ["Registos de novos utilizadores", "signups", "var(--orange)"],
+            ["Refeições registadas", "foodLogs", "#16A34A"],
+            ["Treinos marcados", "checkins", "#0891B2"],
+          ] as const).map(([label, key, color]) => {
+            const max = Math.max(1, ...metricsData.series.map((s) => s[key]));
+            return (
+              <div key={key} className="rounded-2xl p-5 shadow-sm" style={{ background: "var(--white)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-bold" style={{ color: "var(--black)" }}>{label}</p>
+                  <p className="text-xs" style={{ color: "var(--gray)" }}>
+                    últimos 30 dias · total {metricsData.series.reduce((a, s) => a + s[key], 0)}
+                  </p>
+                </div>
+                <div className="flex items-end gap-[2px] h-20">
+                  {metricsData.series.map((s) => (
+                    <div key={s.day} className="flex-1 rounded-t group relative" title={`${new Date(s.day + "T12:00:00").toLocaleDateString("pt-PT", { day: "numeric", month: "short" })}: ${s[key]}`}
+                      style={{ background: s[key] > 0 ? color : "var(--cream)", height: `${Math.max(4, (s[key] / max) * 100)}%`, opacity: s[key] > 0 ? 0.9 : 1 }} />
+                  ))}
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-[9px]" style={{ color: "var(--gray)" }}>
+                    {new Date(metricsData.series[0]?.day + "T12:00:00").toLocaleDateString("pt-PT", { day: "numeric", month: "short" })}
+                  </span>
+                  <span className="text-[9px]" style={{ color: "var(--gray)" }}>hoje</span>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Broadcast de notificações */}
+          <div className="rounded-2xl p-5 shadow-sm" style={{ background: "var(--white)" }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Bell size={16} style={{ color: "var(--orange)" }} />
+              <p className="text-sm font-bold" style={{ color: "var(--black)" }}>Enviar notificação a todos</p>
+            </div>
+            <form onSubmit={sendBroadcast} className="space-y-3">
+              <input
+                type="text" value={broadcast.title}
+                onChange={(e) => setBroadcast((b) => ({ ...b, title: e.target.value }))}
+                placeholder="Título — ex: Novo treino disponível! 🍑"
+                className="w-full px-4 py-2.5 rounded-xl text-sm border outline-none"
+                style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+                required maxLength={80}
+              />
+              <textarea
+                value={broadcast.body}
+                onChange={(e) => setBroadcast((b) => ({ ...b, body: e.target.value }))}
+                placeholder="Mensagem (opcional)"
+                rows={2} maxLength={200}
+                className="w-full px-4 py-2.5 rounded-xl text-sm border outline-none resize-none"
+                style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  type="submit" disabled={broadcastState === "sending"}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white cursor-pointer disabled:opacity-60"
+                  style={{ background: "var(--orange)" }}
+                >
+                  <Send size={14} /> {broadcastState === "sending" ? "A enviar..." : "Enviar"}
+                </button>
+                {broadcastState !== "idle" && broadcastState !== "sending" && (
+                  <p className="text-xs" style={{ color: broadcastState.startsWith("✅") ? "#16A34A" : "#DC2626" }}>{broadcastState}</p>
+                )}
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
