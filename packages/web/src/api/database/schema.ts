@@ -127,6 +127,14 @@ export const paidCustomers = sqliteTable("paid_customers", {
   paidAt: integer("paid_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Registo de gerações de receitas por IA (controlo de custos: 1/dia por aluno)
+export const aiGenerations = sqliteTable("ai_generations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  genDate: text("gen_date").notNull(), // YYYY-MM-DD
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // Subscrições Web Push (uma por browser/dispositivo)
 export const pushSubscriptions = sqliteTable("push_subscriptions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
