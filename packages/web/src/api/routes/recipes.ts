@@ -1,28 +1,23 @@
 import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import Anthropic from "@anthropic-ai/sdk";
 
 // IA ligada diretamente à chave Anthropic (independente de qualquer gateway).
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Rate limit em memória: máx. 10 gerações por utilizador por hora.
-// Reinicia com o processo — suficiente para travar abuso de custos da API.
-const RATE_LIMIT = 10;
-const RATE_WINDOW_MS = 60 * 60 * 1000;
-const generationLog = new Map<string, number[]>();
+// Controlo de custos: cada aluno pode gerar 1 receita por dia (persistido
+// na base de dados — sobrevive a reinícios do servidor). Admin sem limite.
+const DAILY_LIMIT = 1;
 
-function checkRateLimit(userId: string): boolean {
-  const now = Date.now();
-  const times = (generationLog.get(userId) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
-  if (times.length >= RATE_LIMIT) {
-    generationLog.set(userId, times);
-    return false;
-  }
-  times.push(now);
-  generationLog.set(userId, times);
+async function checkDailyLimit(userId: string): Promise<boolean> {
+  const today = new Date().toISOString().split("T")[0];
+  const rows = await db.select().from(schema.aiGenerations)
+    .where(and(eq(schema.aiGenerations.userId, userId), eq(schema.aiGenerations.genDate, today)));
+  if (rows.length >= DAILY_LIMIT) return false;
+  await db.insert(schema.aiGenerations).values({ userId, genDate: today });
   return true;
 }
 
@@ -77,8 +72,8 @@ export const recipesRoute = new Hono()
   .post("/generate", requireAuth, async (c) => {
     try {
       const user = c.get("user")!;
-      if (!checkRateLimit(user.id)) {
-        return c.json({ error: "Limite de gerações atingido (10 por hora). Tenta mais tarde." }, 429);
+      if (user.role !== "admin" && !(await checkDailyLimit(user.id))) {
+        return c.json({ error: "Já geraste a tua receita de hoje. 🍑 Volta amanhã para uma nova!" }, 429);
       }
       const { prompt } = await c.req.json();
       const userPrompt = prompt || "Cria uma receita saudável e equilibrada para uma mulher a fazer um desafio de glúteos";
