@@ -1,11 +1,32 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { authClient } from "../lib/auth";
-import { Play, FileText, Apple, Flame, TrendingUp, Target, ChevronRight } from "lucide-react";
+import { authClient, getToken } from "../lib/auth";
+import { Play, FileText, Apple, Flame, ChevronRight, CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
+import { PushToggle } from "../components/push-toggle";
 
 export default function DashboardPage() {
   const { data: session } = authClient.useSession();
+  const qc = useQueryClient();
+
+  const { data: progressData } = useQuery({
+    queryKey: ["progress"],
+    queryFn: async () => {
+      const res = await fetch("/api/progress", { headers: { Authorization: `Bearer ${getToken()}` } });
+      return res.json() as Promise<{ checkins: string[]; streak: number }>;
+    },
+  });
+  const checkinToggle = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/progress/checkin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({}),
+      });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["progress"] }),
+  });
   const { data: videosData } = useQuery({ queryKey: ["videos"], queryFn: async () => (await api.videos.$get()).json() });
   const { data: docsData } = useQuery({ queryKey: ["documents"], queryFn: async () => (await api.documents.$get()).json() });
 
@@ -48,8 +69,69 @@ export default function DashboardPage() {
           <p className="text-white/70 text-sm max-w-md">
             Continua o teu progresso. Cada treino conta. Tens acesso completo a todos os conteúdos do programa.
           </p>
+          <div className="mt-4">
+            <PushToggle />
+          </div>
         </div>
       </div>
+
+      {/* Streak de treino + calendário semanal */}
+      {(() => {
+        const checkins = new Set(progressData?.checkins ?? []);
+        const streak = progressData?.streak ?? 0;
+        const doneToday = checkins.has(today);
+        // Semana atual: segunda a domingo
+        const now = new Date();
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+        const week = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + i);
+          return d.toISOString().split("T")[0];
+        });
+        const labels = ["S", "T", "Q", "Q", "S", "S", "D"];
+        return (
+          <div className="rounded-2xl p-5 shadow-sm" style={{ background: "var(--white)" }}>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: "var(--peach)" }}>
+                  🔥
+                </div>
+                <div>
+                  <p className="text-2xl font-black" style={{ color: "var(--black)" }}>
+                    {streak} {streak === 1 ? "dia" : "dias"}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--gray)" }}>de treino seguidos</p>
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                {week.map((d, i) => (
+                  <div key={d} className="flex flex-col items-center gap-1">
+                    <span className="text-[9px] font-bold" style={{ color: "var(--gray)" }}>{labels[i]}</span>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                      style={checkins.has(d)
+                        ? { background: "var(--orange)", color: "white" }
+                        : d === today
+                          ? { border: "2px dashed var(--orange)", color: "var(--gray)" }
+                          : { background: "var(--cream)", color: "var(--gray)" }}>
+                      {checkins.has(d) ? "✓" : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => checkinToggle.mutate()}
+                disabled={checkinToggle.isPending}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-60"
+                style={doneToday ? { background: "#DCFCE7", color: "#16A34A" } : { background: "var(--orange)", color: "white" }}
+              >
+                <CheckCircle2 size={16} />
+                {doneToday ? "Treino feito hoje!" : "Marcar treino de hoje"}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

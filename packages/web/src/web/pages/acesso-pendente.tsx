@@ -1,10 +1,36 @@
-import { authClient, clearToken } from "../lib/auth";
-import { LogOut } from "lucide-react";
+import { useState } from "react";
+import { authClient, clearToken, getToken } from "../lib/auth";
+import { LogOut, RefreshCw, Loader2 } from "lucide-react";
 
 const PAYMENT_LINK = "https://buy.stripe.com/14AfZj0jY7mZ5HB4dMfjG00";
 
 export default function AcessoPendentePage() {
   const { data: session } = authClient.useSession();
+  const [verifying, setVerifying] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState("");
+
+  // Verificação self-service: consulta paid_customers e o Stripe pelo email.
+  const handleVerifyPayment = async () => {
+    setVerifying(true);
+    setVerifyMsg("");
+    try {
+      const res = await fetch("/api/membership/verify-payment", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json() as any;
+      if (data.activated) {
+        setVerifyMsg("✅ Pagamento confirmado! A entrar...");
+        setTimeout(() => { window.location.href = "/"; }, 1200);
+      } else {
+        setVerifyMsg(data.message || "Ainda não encontrámos o pagamento. Tenta daqui a uns minutos.");
+      }
+    } catch {
+      setVerifyMsg("Erro ao verificar. Tenta novamente.");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleSignOut = async () => {
     await authClient.signOut();
@@ -56,6 +82,20 @@ export default function AcessoPendentePage() {
         <p className="text-xs mb-4" style={{ color: "var(--gray)" }}>
           Após o pagamento, o acesso é ativado automaticamente em segundos.
         </p>
+
+        <button
+          onClick={handleVerifyPayment}
+          disabled={verifying}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm border transition-opacity hover:opacity-80 disabled:opacity-50 cursor-pointer mb-3"
+          style={{ borderColor: "var(--orange)", color: "var(--orange)", background: "transparent" }}
+        >
+          {verifying ? <><Loader2 size={15} className="animate-spin" /> A verificar...</> : <><RefreshCw size={15} /> Já paguei — verificar acesso</>}
+        </button>
+        {verifyMsg && (
+          <p className="text-xs mb-4 font-medium" style={{ color: verifyMsg.startsWith("✅") ? "#16A34A" : "var(--gray)" }}>
+            {verifyMsg}
+          </p>
+        )}
 
         <button
           onClick={handleSignOut}

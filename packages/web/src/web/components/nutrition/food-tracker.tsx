@@ -3,6 +3,7 @@ import { api } from "../../lib/api";
 import { getToken } from "../../lib/auth";
 import { useState } from "react";
 import { Plus, Trash2, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { WeeklyReport } from "./weekly-report";
 
 const MEALS = [
   { id: "pequeno-almoco", label: "Pequeno-almoço", emoji: "🌅" },
@@ -120,10 +121,13 @@ export default function FoodTracker() {
   const prevDay = () => {
     const d = new Date(date); d.setDate(d.getDate() - 1); setDate(d.toISOString().split("T")[0]);
   };
+  // Permite avançar até 14 dias no futuro para planear refeições.
   const nextDay = () => {
     const d = new Date(date); d.setDate(d.getDate() + 1);
-    if (d <= new Date()) setDate(d.toISOString().split("T")[0]);
+    const max = new Date(); max.setDate(max.getDate() + 14);
+    if (d <= max) setDate(d.toISOString().split("T")[0]);
   };
+  const todayStr = new Date().toISOString().split("T")[0];
 
   const handleAdd = () => {
     const food = addMode === "search" ? selectedFood : customFood;
@@ -154,6 +158,11 @@ export default function FoodTracker() {
 
   return (
     <div className="space-y-4">
+      {/* Relatório semanal */}
+      <div className="flex justify-end">
+        <WeeklyReport />
+      </div>
+
       {/* Date navigator */}
       <div className="flex items-center gap-3 rounded-2xl p-4" style={{ background: "var(--white)" }}>
         <button onClick={prevDay} className="p-2 rounded-xl cursor-pointer" style={{ background: "var(--cream)" }}>
@@ -162,8 +171,14 @@ export default function FoodTracker() {
         <div className="flex-1 text-center">
           <p className="font-bold text-sm" style={{ color: "var(--black)" }}>
             {new Date(date + "T12:00:00").toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" })}
+            {date > todayStr && <span className="ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full align-middle" style={{ background: "var(--peach)", color: "var(--orange)" }}>Planeamento</span>}
           </p>
           <p className="text-xs" style={{ color: "var(--gray)" }}>{Math.round(totalCals)} kcal totais</p>
+          {date !== todayStr && (
+            <button onClick={() => setDate(todayStr)} className="text-[10px] underline cursor-pointer" style={{ color: "var(--orange)" }}>
+              Voltar a hoje
+            </button>
+          )}
         </div>
         <button onClick={nextDay} className="p-2 rounded-xl cursor-pointer" style={{ background: "var(--cream)" }}>
           <ChevronRight size={18} style={{ color: "var(--gray)" }} />

@@ -15,6 +15,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [acceptedRgpd, setAcceptedRgpd] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState("");
+
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setForgotMsg("");
+    try {
+      await authClient.requestPasswordReset({ email, redirectTo: "/repor-password" });
+      // Resposta é sempre neutra — não revela se o email existe.
+      setForgotMsg("Se existir uma conta com esse email, vais receber um link para repor a palavra-passe.");
+    } catch {
+      setError("Erro ao pedir recuperação. Tenta novamente.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +111,41 @@ export default function LoginPage() {
             {mode === "login" ? "Entra na tua conta para continuar o desafio." : "Cria a tua conta e começa hoje."}
           </p>
 
+          {forgotMode ? (
+            <form onSubmit={handleForgot} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--gray)" }}>Email da conta</label>
+                <input
+                  type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="o-teu@email.com"
+                  className="w-full px-4 py-3 rounded-xl text-sm font-medium outline-none transition-all border"
+                  style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+                  required
+                />
+              </div>
+              {forgotMsg && (
+                <div className="text-sm font-medium px-4 py-3 rounded-xl" style={{ background: "#DCFCE7", color: "#16A34A" }}>{forgotMsg}</div>
+              )}
+              {error && (
+                <div className="text-sm font-medium px-4 py-3 rounded-xl" style={{ background: "#FEE2E2", color: "#DC2626" }}>{error}</div>
+              )}
+              <button
+                type="submit" disabled={loading}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all duration-200 mt-2 cursor-pointer disabled:opacity-60"
+                style={{ background: "var(--orange)" }}
+              >
+                {loading ? "A enviar..." : "Enviar link de recuperação"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setForgotMode(false); setForgotMsg(""); setError(""); }}
+                className="w-full text-xs underline cursor-pointer"
+                style={{ color: "var(--gray)" }}
+              >
+                Voltar ao login
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
               <div>
@@ -130,6 +183,16 @@ export default function LoginPage() {
                   {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              {mode === "login" && (
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(true); setError(""); }}
+                  className="text-xs underline mt-1.5 cursor-pointer"
+                  style={{ color: "var(--gray)" }}
+                >
+                  Esqueceste-te da palavra-passe?
+                </button>
+              )}
             </div>
 
             {mode === "signup" && (
@@ -163,6 +226,7 @@ export default function LoginPage() {
                 : mode === "login" ? "Entrar na plataforma" : "Criar conta gratuita"}
             </button>
           </form>
+          )}
 
           <p className="text-center text-xs mt-6" style={{ color: "var(--gray)" }}>
             Ainda não tens acesso?{" "}

@@ -15,7 +15,7 @@ export function ProtectedRoute({ children, adminOnly = false }: { children: Reac
     );
   }
 
-  if (!session) return <Redirect to="/loja" />;
+  if (!session) return <Redirect to="/login" />;
 
   const role = (session.user as any).role as string ?? "pending";
 

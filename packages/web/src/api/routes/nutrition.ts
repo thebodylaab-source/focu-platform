@@ -1,8 +1,22 @@
 import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
-import { eq, and, like, or } from "drizzle-orm";
+import { eq, and, like, or, gte, lte } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
+
+// Valida um alimento antes de entrar na base (pessoal ou global).
+// Evita dados absurdos que envenenam as contagens de toda a gente.
+function validateFood(body: any): string | null {
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (name.length < 2 || name.length > 60) return "Nome do alimento inválido (2–60 caracteres).";
+  const cal = parseFloat(body.calories);
+  if (!Number.isFinite(cal) || cal < 0 || cal > 1000) return "Calorias inválidas (0–1000 por porção).";
+  for (const macro of ["protein", "carbs", "fat"]) {
+    const v = parseFloat(body[macro] ?? 0);
+    if (!Number.isFinite(v) || v < 0 || v > 200) return "Macros inválidos (0–200g por porção).";
+  }
+  return null;
+}
 
 export const nutritionRoute = new Hono()
   // --- Calorie Goal ---
@@ -34,6 +48,23 @@ export const nutritionRoute = new Hono()
       .where(and(eq(schema.foodLogs.userId, user.id), eq(schema.foodLogs.logDate, date)));
     return c.json({ logs }, 200);
   })
+  // Logs num intervalo de datas (máx. 31 dias) — usado pelo relatório semanal
+  .get("/logs/range", requireAuth, async (c) => {
+    const user = c.get("user")!;
+    const from = c.req.query("from") ?? "";
+    const to = c.req.query("to") ?? "";
+    const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+    if (!isDate(from) || !isDate(to) || from > to) return c.json({ message: "Intervalo inválido" }, 400);
+    const days = (new Date(to).getTime() - new Date(from).getTime()) / 86400_000;
+    if (days > 31) return c.json({ message: "Intervalo máximo: 31 dias" }, 400);
+    const logs = await db.select().from(schema.foodLogs)
+      .where(and(
+        eq(schema.foodLogs.userId, user.id),
+        gte(schema.foodLogs.logDate, from),
+        lte(schema.foodLogs.logDate, to),
+      ));
+    return c.json({ logs }, 200);
+  })
   .post("/logs", requireAuth, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
@@ -55,6 +86,8 @@ export const nutritionRoute = new Hono()
   .post("/foods", requireAuth, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
+    const invalid = validateFood(body);
+    if (invalid) return c.json({ message: invalid }, 400);
     const [food] = await db.insert(schema.foodItems).values({ userId: user.id, ...body }).returning();
     return c.json({ food }, 201);
   })
@@ -79,6 +112,8 @@ export const nutritionRoute = new Hono()
   .post("/global-foods", requireAuth, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
+    const invalid = validateFood(body);
+    if (invalid) return c.json({ message: invalid }, 400);
     // upsert by name (ignore if already exists)
     try {
       const [food] = await db.insert(schema.globalFoods)

@@ -11,6 +11,7 @@ import AcessoPendentePage from "./pages/acesso-pendente";
 import AdminPage from "./pages/admin";
 import LojaPage from "./pages/loja";
 import PrivacidadePage from "./pages/privacidade";
+import ReporPasswordPage from "./pages/repor-password";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/registar" component={LoginPage} />
         <Route path="/register" component={LoginPage} />
         <Route path="/privacidade" component={PrivacidadePage} />
+        <Route path="/repor-password" component={ReporPasswordPage} />
         <Route path="/acesso-pendente" component={AcessoPendentePage} />
         <Route path="/">
           <ProtectedRoute>
