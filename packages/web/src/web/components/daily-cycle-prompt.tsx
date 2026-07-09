@@ -8,13 +8,21 @@ import { computeCycle } from "../lib/cycle";
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
 
 type CycleRow = { lastPeriodStart: string; cycleLength: number; periodLength: number } | null;
-type Checkin = { feeling: string } | null;
+type Checkin = { feeling: string; symptoms?: string } | null;
 
 const FEELINGS = [
   { id: "otima", emoji: "🔥", label: "Cheia de energia" },
   { id: "bem", emoji: "🙂", label: "Bem" },
   { id: "media", emoji: "😐", label: "Mais ou menos" },
   { id: "sem-energia", emoji: "😴", label: "Sem energia" },
+];
+
+const SYMPTOMS = [
+  { id: "colicas", emoji: "🩸", label: "Cólicas" },
+  { id: "inchaco", emoji: "🎈", label: "Inchaço" },
+  { id: "humor", emoji: "😔", label: "Humor" },
+  { id: "sono", emoji: "😴", label: "Sono fraco" },
+  { id: "desejos", emoji: "🍫", label: "Desejos" },
 ];
 
 // Bloco diário no dashboard: mostra a fase do ciclo e pergunta como te sentes
@@ -46,6 +54,14 @@ export function DailyCyclePrompt() {
       return res.json();
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["cycle-checkin"] }); setCorrecting(false); },
+  });
+
+  const saveSymptoms = useMutation({
+    mutationFn: async (symptoms: string[]) => {
+      const res = await fetch("/api/cycle/checkin", { method: "POST", headers: authHeaders(), body: JSON.stringify({ symptoms }) });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle-checkin"] }),
   });
 
   if (isLoading) return null;
@@ -122,6 +138,33 @@ export function DailyCyclePrompt() {
             </div>
           </>
         )}
+
+        {/* #4 Sintomas do dia (opcional) — só depois de responder ao estado */}
+        {done && !correcting && (() => {
+          let selected: string[] = [];
+          try { selected = JSON.parse(done.symptoms || "[]"); } catch { /* ignore */ }
+          const toggle = (id: string) => {
+            const next = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id];
+            saveSymptoms.mutate(next);
+          };
+          return (
+            <div className="mt-3">
+              <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--gray)" }}>Sintomas hoje? <span style={{ opacity: 0.6 }}>(opcional)</span></p>
+              <div className="flex flex-wrap gap-1.5">
+                {SYMPTOMS.map(s => {
+                  const on = selected.includes(s.id);
+                  return (
+                    <button key={s.id} onClick={() => toggle(s.id)} disabled={saveSymptoms.isPending}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all disabled:opacity-50"
+                      style={on ? { background: p.color, color: "white" } : { background: "var(--white)", color: "var(--gray)" }}>
+                      <span>{s.emoji}</span> {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

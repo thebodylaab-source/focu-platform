@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
+import { computePhase, type CycleSettings, type PhaseId } from "../../shared/cycle-core";
 
 const isDate = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const today = () => new Date().toISOString().split("T")[0];
@@ -51,22 +52,91 @@ export const cycleRoute = new Hono()
       .where(and(eq(schema.cycleCheckins.userId, user.id), eq(schema.cycleCheckins.checkinDate, today())));
     return c.json({ checkin: row ?? null }, 200);
   })
-  // Regista/atualiza o check-in de hoje.
+  // Regista/atualiza o check-in de hoje (estado e/ou sintomas).
   .post("/checkin", requireAuth, async (c) => {
     const user = c.get("user")!;
-    const { feeling } = await c.req.json();
-    const allowed = ["otima", "bem", "media", "sem-energia"];
-    if (!allowed.includes(feeling)) return c.json({ message: "Estado inválido" }, 400);
+    const body = await c.req.json();
+    const allowedFeelings = ["otima", "bem", "media", "sem-energia"];
+    const allowedSymptoms = ["colicas", "inchaco", "humor", "sono", "desejos"];
+
+    const feeling = allowedFeelings.includes(body.feeling) ? body.feeling : undefined;
+    const symptoms = Array.isArray(body.symptoms)
+      ? body.symptoms.filter((s: any) => allowedSymptoms.includes(s))
+      : undefined;
+    if (feeling === undefined && symptoms === undefined) {
+      return c.json({ message: "Nada para registar." }, 400);
+    }
+
     const [existing] = await db.select().from(schema.cycleCheckins)
       .where(and(eq(schema.cycleCheckins.userId, user.id), eq(schema.cycleCheckins.checkinDate, today())));
     if (existing) {
-      const [row] = await db.update(schema.cycleCheckins).set({ feeling })
+      const set: any = {};
+      if (feeling !== undefined) set.feeling = feeling;
+      if (symptoms !== undefined) set.symptoms = JSON.stringify(symptoms);
+      const [row] = await db.update(schema.cycleCheckins).set(set)
         .where(eq(schema.cycleCheckins.id, existing.id)).returning();
       return c.json({ checkin: row }, 200);
     }
+    // Novo registo precisa de um estado (os sintomas só aparecem depois no UI).
+    if (feeling === undefined) return c.json({ message: "Escolhe primeiro como te sentes." }, 400);
     const [row] = await db.insert(schema.cycleCheckins)
-      .values({ userId: user.id, checkinDate: today(), feeling }).returning();
+      .values({ userId: user.id, checkinDate: today(), feeling, symptoms: JSON.stringify(symptoms ?? []) }).returning();
     return c.json({ checkin: row }, 201);
+  })
+  // Padrões: agrega os check-ins por fase para mostrar tendências à aluna.
+  .get("/insights", requireAuth, async (c) => {
+    const user = c.get("user")!;
+    const [cycleRow] = await db.select().from(schema.cycleTracking).where(eq(schema.cycleTracking.userId, user.id));
+    if (!cycleRow) return c.json({ insights: null }, 200);
+    const settings: CycleSettings = { lastPeriodStart: cycleRow.lastPeriodStart, cycleLength: cycleRow.cycleLength, periodLength: cycleRow.periodLength };
+
+    const since = new Date(); since.setDate(since.getDate() - 90);
+    const rows = await db.select().from(schema.cycleCheckins)
+      .where(and(eq(schema.cycleCheckins.userId, user.id), gte(schema.cycleCheckins.checkinDate, since.toISOString().split("T")[0])));
+
+    const energyScore: Record<string, number> = { otima: 4, bem: 3, media: 2, "sem-energia": 1 };
+    const byPhase: Record<PhaseId, { count: number; energySum: number; symptoms: Record<string, number> }> = {
+      menstrual: { count: 0, energySum: 0, symptoms: {} },
+      folicular: { count: 0, energySum: 0, symptoms: {} },
+      ovulacao: { count: 0, energySum: 0, symptoms: {} },
+      lutea: { count: 0, energySum: 0, symptoms: {} },
+    };
+    const symptomTotals: Record<string, number> = {};
+
+    for (const r of rows) {
+      const ph = computePhase(settings, r.checkinDate).phaseId;
+      const b = byPhase[ph];
+      b.count++;
+      b.energySum += energyScore[r.feeling] ?? 2;
+      let syms: string[] = [];
+      try { syms = JSON.parse(r.symptoms || "[]"); } catch { /* ignore */ }
+      for (const s of syms) {
+        b.symptoms[s] = (b.symptoms[s] ?? 0) + 1;
+        symptomTotals[s] = (symptomTotals[s] ?? 0) + 1;
+      }
+    }
+
+    // Fase com menor energia média (só fases com registos)
+    let lowestEnergyPhase: PhaseId | null = null;
+    let lowestAvg = Infinity;
+    (Object.keys(byPhase) as PhaseId[]).forEach((ph) => {
+      const b = byPhase[ph];
+      if (b.count >= 2) {
+        const avg = b.energySum / b.count;
+        if (avg < lowestAvg) { lowestAvg = avg; lowestEnergyPhase = ph; }
+      }
+    });
+
+    const topSymptoms = Object.entries(symptomTotals).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, count]) => ({ id, count }));
+
+    return c.json({
+      insights: {
+        totalCheckins: rows.length,
+        byPhase,
+        lowestEnergyPhase,
+        topSymptoms,
+      },
+    }, 200);
   })
   // Atalho: "o período começou hoje" — atualiza só a data, mantém as durações.
   .post("/period-started", requireAuth, async (c) => {

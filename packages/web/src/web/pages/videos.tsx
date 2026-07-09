@@ -40,7 +40,12 @@ function YouTubeEmbed({ videoId, title }: { videoId: string; title: string }) {
 
 export default function VideosPage() {
   const qc = useQueryClient();
-  const [filter, setFilter] = useState("Todos");
+  // Categoria inicial via ?cat= (ex: sugestão do ciclo). Só se for válida.
+  const initialCat = (() => {
+    const c = new URLSearchParams(window.location.search).get("cat");
+    return c && CATEGORIES.includes(c) ? c : "Todos";
+  })();
+  const [filter, setFilter] = useState(initialCat);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [onlyFavs, setOnlyFavs] = useState(false);

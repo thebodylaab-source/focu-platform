@@ -143,6 +143,8 @@ export const cycleCheckins = sqliteTable("cycle_checkins", {
   userId: text("user_id").notNull(),
   checkinDate: text("checkin_date").notNull(), // YYYY-MM-DD
   feeling: text("feeling").notNull(), // otima | bem | media | sem-energia
+  // Sintomas do dia (JSON array): colicas | inchaco | humor | sono | desejos
+  symptoms: text("symptoms").notNull().default("[]"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
