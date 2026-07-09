@@ -127,6 +127,16 @@ export const paidCustomers = sqliteTable("paid_customers", {
   paidAt: integer("paid_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Ciclo menstrual — usado para dar orientação diária de treino e nutrição
+export const cycleTracking = sqliteTable("cycle_tracking", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().unique(),
+  lastPeriodStart: text("last_period_start").notNull(), // YYYY-MM-DD
+  cycleLength: integer("cycle_length").notNull().default(28),
+  periodLength: integer("period_length").notNull().default(5),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // Registo de gerações de receitas por IA (controlo de custos: 1/dia por aluno)
 export const aiGenerations = sqliteTable("ai_generations", {
   id: integer("id").primaryKey({ autoIncrement: true }),

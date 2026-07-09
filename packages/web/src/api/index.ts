@@ -12,6 +12,7 @@ import { adminRoute } from "./routes/admin";
 import { favoritesRoute } from "./routes/favorites";
 import { progressRoute } from "./routes/progress";
 import { pushRoute } from "./routes/push";
+import { cycleRoute } from "./routes/cycle";
 
 const corsMiddleware = cors({ origin: (origin) => origin ?? "*", credentials: true, exposeHeaders: ["set-auth-token"] });
 
@@ -28,7 +29,8 @@ const apiApp = new Hono()
   .route("/admin", adminRoute)
   .route("/favorites", favoritesRoute)
   .route("/progress", progressRoute)
-  .route("/push", pushRoute);
+  .route("/push", pushRoute)
+  .route("/cycle", cycleRoute);
 
 // Root app
 const app = new Hono()
