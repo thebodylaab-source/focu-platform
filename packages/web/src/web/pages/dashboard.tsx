@@ -4,7 +4,7 @@ import { authClient, getToken } from "../lib/auth";
 import { Play, FileText, Apple, Flame, ChevronRight, CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
 import { PushToggle } from "../components/push-toggle";
-import { computeCycle } from "../lib/cycle";
+import { DailyCyclePrompt } from "../components/daily-cycle-prompt";
 
 export default function DashboardPage() {
   const { data: session } = authClient.useSession();
@@ -29,13 +29,6 @@ export default function DashboardPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["progress"] }),
   });
 
-  const { data: cycleData } = useQuery({
-    queryKey: ["cycle"],
-    queryFn: async () => {
-      const res = await fetch("/api/cycle", { headers: { Authorization: `Bearer ${getToken()}` } });
-      return res.json() as Promise<{ cycle: { lastPeriodStart: string; cycleLength: number; periodLength: number } | null }>;
-    },
-  });
   const { data: videosData } = useQuery({ queryKey: ["videos"], queryFn: async () => (await api.videos.$get()).json() });
   const { data: docsData } = useQuery({ queryKey: ["documents"], queryFn: async () => (await api.documents.$get()).json() });
 
@@ -73,9 +66,9 @@ export default function DashboardPage() {
         <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full opacity-20" style={{ background: "white" }} />
         <div className="absolute -right-4 -bottom-12 w-56 h-56 rounded-full opacity-10" style={{ background: "white" }} />
         <div className="relative z-10">
-          <p className="text-white/80 font-medium mb-1">{greeting}, {firstName}! 👋</p>
-          <h1 className="text-3xl font-black text-white mb-2">O teu painel FO.CU 🍑</h1>
-          <p className="text-white/70 text-sm max-w-md">
+          <p className="font-medium mb-1" style={{ color: "var(--black)" }}>{greeting}, {firstName}! 👋</p>
+          <h1 className="text-3xl font-black mb-2" style={{ color: "var(--black)" }}>O teu painel FO.CU 🍑</h1>
+          <p className="text-sm max-w-md" style={{ color: "var(--black)", opacity: 0.75 }}>
             Continua o teu progresso. Cada treino conta. Tens acesso completo a todos os conteúdos do programa.
           </p>
           <div className="mt-4">
@@ -83,6 +76,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Pergunta diária do ciclo */}
+      <DailyCyclePrompt />
 
       {/* Streak de treino + calendário semanal */}
       {(() => {
@@ -139,29 +135,6 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-        );
-      })()}
-
-      {/* Guia do ciclo — hoje */}
-      {cycleData?.cycle && (() => {
-        const t = computeCycle(cycleData.cycle);
-        const p = t.phase;
-        return (
-          <Link to="/nutricao?tab=ciclo">
-            <div className="rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md" style={{ background: p.color + "12", border: `1.5px solid ${p.color}30` }}>
-              <div className="flex items-center gap-4">
-                <span className="text-3xl">{p.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-black" style={{ color: "var(--black)" }}>{p.label}</p>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: p.color + "20", color: p.color }}>{p.energyLabel}</span>
-                  </div>
-                  <p className="text-xs mt-0.5 line-clamp-1" style={{ color: "var(--gray)" }}>{p.training.title} · {p.nutrition.title}</p>
-                </div>
-                <ChevronRight size={18} style={{ color: p.color }} />
-              </div>
-            </div>
-          </Link>
         );
       })()}
 

@@ -137,6 +137,15 @@ export const cycleTracking = sqliteTable("cycle_tracking", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Check-in diário do ciclo (como se sente cada dia) — 1 por dia por aluna
+export const cycleCheckins = sqliteTable("cycle_checkins", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  checkinDate: text("checkin_date").notNull(), // YYYY-MM-DD
+  feeling: text("feeling").notNull(), // otima | bem | media | sem-energia
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // Registo de gerações de receitas por IA (controlo de custos: 1/dia por aluno)
 export const aiGenerations = sqliteTable("ai_generations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
