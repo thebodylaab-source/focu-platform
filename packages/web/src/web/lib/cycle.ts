@@ -1,14 +1,8 @@
-// Lógica do ciclo menstrual: a partir da data da última menstruação e da
-// duração do ciclo, calcula a fase de hoje e a orientação de treino/nutrição.
-// Conteúdo curado (sem IA) — orientação geral de bem-estar, não é aconselhamento médico.
+// Conteúdo de UI do ciclo (curado, sem IA). A matemática vive em shared/cycle-core.
+// Orientação geral de bem-estar, não é aconselhamento médico.
+import { computePhase, type CycleSettings, type PhaseId } from "../../shared/cycle-core";
 
-export type CycleSettings = {
-  lastPeriodStart: string; // YYYY-MM-DD
-  cycleLength: number;
-  periodLength: number;
-};
-
-export type PhaseId = "menstrual" | "folicular" | "ovulacao" | "lutea";
+export type { CycleSettings, PhaseId };
 
 export type PhaseContent = {
   id: PhaseId;
@@ -21,6 +15,15 @@ export type PhaseContent = {
   training: { title: string; text: string };
   nutrition: { title: string; text: string };
   tip: string;
+  // #6 micro-educação: o que se passa no corpo
+  whatsHappening: string;
+  // #3 tranquilizar sobre a balança/desejos (só onde faz sentido)
+  reassurance?: string;
+  // #2 ajuste calórico do dia (kcal a somar ao objetivo)
+  calorieAdjust: number;
+  // #5 categoria de vídeo sugerida para a fase (link para /videos?cat=)
+  suggestedCategory: string;
+  suggestedTraining: string;
 };
 
 export const PHASES: Record<PhaseId, PhaseContent> = {
@@ -41,6 +44,11 @@ export const PHASES: Record<PhaseId, PhaseContent> = {
       text: "Perdes ferro com o período. Aposta em carnes magras, leguminosas e espinafres, com vitamina C (limão, laranja) para absorver melhor. Hidrata-te bem.",
     },
     tip: "Se tiveres cólicas, o movimento leve e o calor ajudam mais do que ficares parada.",
+    whatsHappening: "Os estrogénios e a progesterona estão no mínimo — por isso a energia está em baixo. É o teu corpo a começar um novo ciclo. Descansar agora é produtivo, não preguiça.",
+    reassurance: "Descansar durante o período conta como recuperação. Não vais perder o teu progresso por parares uns dias.",
+    calorieAdjust: 0,
+    suggestedCategory: "Aquecimento",
+    suggestedTraining: "Mobilidade e caminhada",
   },
   folicular: {
     id: "folicular",
@@ -59,6 +67,10 @@ export const PHASES: Record<PhaseId, PhaseContent> = {
       text: "Bom momento para proteína e hidratos de qualidade que sustentam os treinos fortes. O apetite tende a estar mais controlado.",
     },
     tip: "É a melhor semana para tentares progredir cargas ou repetições.",
+    whatsHappening: "Os estrogénios sobem e preparam o corpo para a ovulação. Recuperas mais depressa, ganhas força mais facilmente e o humor tende a estar melhor. É a tua janela para evoluir.",
+    calorieAdjust: 0,
+    suggestedCategory: "Glúteos",
+    suggestedTraining: "Glúteos com carga",
   },
   ovulacao: {
     id: "ovulacao",
@@ -77,6 +89,10 @@ export const PHASES: Record<PhaseId, PhaseContent> = {
       text: "Mantém a proteína alta e não cortes hidratos — precisas de combustível para o pico de performance.",
     },
     tip: "Com mais força e articulações mais laxas nesta fase, mantém a técnica correta para evitar lesões.",
+    whatsHappening: "Os estrogénios atingem o pico e há uma subida de testosterona — daí a força e a energia máximas. É o melhor momento do ciclo para os teus treinos mais fortes.",
+    calorieAdjust: 0,
+    suggestedCategory: "Glúteos",
+    suggestedTraining: "Treino intenso de glúteos",
   },
   lutea: {
     id: "lutea",
@@ -95,6 +111,11 @@ export const PHASES: Record<PhaseId, PhaseContent> = {
       text: "O corpo gasta mais calorias nesta fase e os desejos aumentam — é normal precisares de ~100–200 kcal a mais. Escolhe hidratos complexos e magnésio (chocolate preto, frutos secos) para os desejos e o humor.",
     },
     tip: "Não te martirizes com os desejos — são fisiológicos. Dormir bem faz diferença no humor e na retenção de líquidos.",
+    whatsHappening: "A progesterona sobe para preparar o corpo. Isso aumenta o gasto de energia (por isso a fome), retém líquidos e pode dar TPM. Nada disto é falta de disciplina — é fisiologia.",
+    reassurance: "Se a balança subiu 1–2 kg nesta fase, é água e não gordura. Volta ao normal depois do período — não entres em pânico nem cortes à bruta.",
+    calorieAdjust: 150,
+    suggestedCategory: "Core",
+    suggestedTraining: "Core leve e mobilidade",
   },
 };
 
@@ -106,38 +127,13 @@ export type CycleToday = {
   nextPeriodDate: string;
 };
 
-const MS_DAY = 86400_000;
-const atNoon = (isoDate: string) => new Date(isoDate + "T12:00:00");
-const toISO = (d: Date) => d.toISOString().split("T")[0];
-
-// Calcula a fase e restantes dados para uma data (por defeito, hoje).
 export function computeCycle(settings: CycleSettings, forDate?: string): CycleToday {
-  const cycleLength = Math.max(20, Math.min(45, settings.cycleLength || 28));
-  const periodLength = Math.max(2, Math.min(10, settings.periodLength || 5));
-  const start = atNoon(settings.lastPeriodStart);
-  const today = forDate ? atNoon(forDate) : atNoon(toISO(new Date()));
-
-  const daysSince = Math.floor((today.getTime() - start.getTime()) / MS_DAY);
-  // cycleDay em [1, cycleLength] mesmo que a data de início esteja no passado distante
-  const cycleDay = ((daysSince % cycleLength) + cycleLength) % cycleLength + 1;
-
-  // A fase lútea dura ~14 dias; a ovulação acontece por volta de (ciclo - 14).
-  const ovulationDay = Math.max(periodLength + 2, cycleLength - 14);
-
-  let phaseId: PhaseId;
-  if (cycleDay <= periodLength) phaseId = "menstrual";
-  else if (cycleDay < ovulationDay - 1) phaseId = "folicular";
-  else if (cycleDay <= ovulationDay + 1) phaseId = "ovulacao";
-  else phaseId = "lutea";
-
-  const daysUntilNextPeriod = cycleLength - cycleDay + 1;
-  const next = new Date(today.getTime() + daysUntilNextPeriod * MS_DAY);
-
+  const c = computePhase(settings, forDate);
   return {
-    phase: PHASES[phaseId],
-    cycleDay,
-    cycleLength,
-    daysUntilNextPeriod,
-    nextPeriodDate: toISO(next),
+    phase: PHASES[c.phaseId],
+    cycleDay: c.cycleDay,
+    cycleLength: c.cycleLength,
+    daysUntilNextPeriod: c.daysUntilNextPeriod,
+    nextPeriodDate: c.nextPeriodDate,
   };
 }

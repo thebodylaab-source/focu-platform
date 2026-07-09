@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useState } from "react";
-import { Target, Flame, Drumstick, Wheat, Droplets, Settings, Check } from "lucide-react";
+import { Flame, Drumstick, Wheat, Droplets, Settings, Check } from "lucide-react";
+import { getToken } from "../../lib/auth";
+import { computeCycle } from "../../lib/cycle";
 
 function MacroRing({ value, goal, color, label }: { value: number; goal: number; color: string; label: string }) {
   const pct = Math.min(100, Math.round((value / Math.max(goal, 1)) * 100));
@@ -55,6 +57,17 @@ export default function CalorieCounter() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["calorie-goal"] }); setEditing(false); },
   });
 
+  // #2: na fase lútea o objetivo sobe automaticamente (o corpo gasta mais).
+  const { data: cycleData } = useQuery({
+    queryKey: ["cycle"],
+    queryFn: async () => {
+      const res = await fetch("/api/cycle", { headers: { Authorization: `Bearer ${getToken()}` } });
+      return res.json() as Promise<{ cycle: { lastPeriodStart: string; cycleLength: number; periodLength: number } | null }>;
+    },
+  });
+  const phase = cycleData?.cycle ? computeCycle(cycleData.cycle).phase : null;
+  const calorieAdjust = phase?.calorieAdjust ?? 0;
+
   const logs = (logsData as any)?.logs ?? [];
 
   const totalCals = logs.reduce((acc: number, l: any) => acc + l.calories * l.quantity, 0);
@@ -62,7 +75,7 @@ export default function CalorieCounter() {
   const totalCarbs = logs.reduce((acc: number, l: any) => acc + l.carbs * l.quantity, 0);
   const totalFat = logs.reduce((acc: number, l: any) => acc + l.fat * l.quantity, 0);
 
-  const calGoal = goal?.dailyCalories ?? 2000;
+  const calGoal = (goal?.dailyCalories ?? 2000) + calorieAdjust;
   const remaining = Math.max(0, calGoal - totalCals);
   const calPct = Math.min(100, Math.round((totalCals / calGoal) * 100));
 
@@ -127,8 +140,8 @@ export default function CalorieCounter() {
                 </div>
                 <div className="flex justify-between">
                   <div className="text-center">
-                    <p className="font-black" style={{ color: "var(--black)" }}>{calGoal}</p>
-                    <p className="text-xs" style={{ color: "var(--gray)" }}>Objetivo</p>
+                    <p className="font-black" style={{ color: "var(--black)" }}>{Math.round(calGoal)}</p>
+                    <p className="text-xs" style={{ color: "var(--gray)" }}>Objetivo{calorieAdjust > 0 ? " *" : ""}</p>
                   </div>
                   <div className="text-center">
                     <p className="font-black" style={{ color: remaining > 0 ? "var(--green)" : "#EF4444" }}>{Math.round(remaining)}</p>
@@ -141,6 +154,16 @@ export default function CalorieCounter() {
                 </div>
               </div>
             </div>
+
+            {/* #2: nota do ajuste calórico da fase lútea */}
+            {calorieAdjust > 0 && (
+              <div className="rounded-xl px-3 py-2.5 mb-4 flex items-center gap-2" style={{ background: "#7C3AED12" }}>
+                <span className="text-lg">🌗</span>
+                <p className="text-xs font-medium" style={{ color: "#7C3AED" }}>
+                  <strong>+{calorieAdjust} kcal hoje</strong> — estás na fase lútea e o teu corpo gasta mais. É fisiológico, não é falta de força de vontade.
+                </p>
+              </div>
+            )}
 
             {/* Macros */}
             <div className="grid grid-cols-3 gap-4 pt-4 border-t" style={{ borderColor: "var(--gray-lt)" }}>

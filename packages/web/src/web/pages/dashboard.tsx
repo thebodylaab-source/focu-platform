@@ -14,7 +14,7 @@ export default function DashboardPage() {
     queryKey: ["progress"],
     queryFn: async () => {
       const res = await fetch("/api/progress", { headers: { Authorization: `Bearer ${getToken()}` } });
-      return res.json() as Promise<{ checkins: string[]; streak: number }>;
+      return res.json() as Promise<{ checkins: string[]; streak: number; restForgivenToday: boolean; forgivenDays: string[] }>;
     },
   });
   const checkinToggle = useMutation({
@@ -83,6 +83,8 @@ export default function DashboardPage() {
       {/* Streak de treino + calendário semanal */}
       {(() => {
         const checkins = new Set(progressData?.checkins ?? []);
+        const forgiven = new Set(progressData?.forgivenDays ?? []);
+        const restForgivenToday = progressData?.restForgivenToday ?? false;
         const streak = progressData?.streak ?? 0;
         const doneToday = checkins.has(today);
         // Semana atual: segunda a domingo
@@ -110,19 +112,26 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="flex gap-1.5">
-                {week.map((d, i) => (
-                  <div key={d} className="flex flex-col items-center gap-1">
-                    <span className="text-[9px] font-bold" style={{ color: "var(--gray)" }}>{labels[i]}</span>
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                      style={checkins.has(d)
-                        ? { background: "var(--orange)", color: "white" }
-                        : d === today
-                          ? { border: "2px dashed var(--orange)", color: "var(--gray)" }
-                          : { background: "var(--cream)", color: "var(--gray)" }}>
-                      {checkins.has(d) ? "✓" : ""}
+                {week.map((d, i) => {
+                  const isDone = checkins.has(d);
+                  const isForgiven = !isDone && forgiven.has(d);
+                  return (
+                    <div key={d} className="flex flex-col items-center gap-1">
+                      <span className="text-[9px] font-bold" style={{ color: "var(--gray)" }}>{labels[i]}</span>
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={isDone
+                          ? { background: "var(--orange)", color: "white" }
+                          : isForgiven
+                            ? { background: "#7C3AED20", color: "#7C3AED" }
+                            : d === today
+                              ? { border: "2px dashed var(--orange)", color: "var(--gray)" }
+                              : { background: "var(--cream)", color: "var(--gray)" }}
+                        title={isForgiven ? "Descanso protegido pelo ciclo" : ""}>
+                        {isDone ? "✓" : isForgiven ? "🌙" : ""}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <button
                 onClick={() => checkinToggle.mutate()}
@@ -134,6 +143,15 @@ export default function DashboardPage() {
                 {doneToday ? "Treino feito hoje!" : "Marcar treino de hoje"}
               </button>
             </div>
+            {/* #1: tirar a culpa nos dias baixos do ciclo */}
+            {restForgivenToday && !doneToday && (
+              <div className="mt-4 pt-4 rounded-xl px-3 py-2.5 flex items-center gap-2" style={{ background: "#7C3AED12", borderTop: "1px solid #7C3AED20" }}>
+                <span className="text-lg">🌙</span>
+                <p className="text-xs font-medium" style={{ color: "#7C3AED" }}>
+                  Estás numa fase baixa do ciclo. <strong>Descansar hoje não quebra o teu streak</strong> — o teu corpo agradece.
+                </p>
+              </div>
+            )}
           </div>
         );
       })()}
