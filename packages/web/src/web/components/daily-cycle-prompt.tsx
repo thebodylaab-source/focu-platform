@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ChevronRight, Moon } from "lucide-react";
+import { ChevronRight, Moon, Pencil } from "lucide-react";
 import { getToken } from "../lib/auth";
 import { computeCycle } from "../lib/cycle";
 
@@ -20,6 +21,7 @@ const FEELINGS = [
 // (uma vez por dia). Se o ciclo ainda não estiver configurado, convida a fazê-lo.
 export function DailyCyclePrompt() {
   const qc = useQueryClient();
+  const [correcting, setCorrecting] = useState(false);
 
   const { data: cycleData, isLoading } = useQuery({
     queryKey: ["cycle"],
@@ -43,7 +45,7 @@ export function DailyCyclePrompt() {
       const res = await fetch("/api/cycle/checkin", { method: "POST", headers: authHeaders(), body: JSON.stringify({ feeling }) });
       return res.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle-checkin"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["cycle-checkin"] }); setCorrecting(false); },
   });
 
   if (isLoading) return null;
@@ -89,25 +91,34 @@ export function DailyCyclePrompt() {
 
       {/* Pergunta diária */}
       <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${p.color}25` }}>
-        {done ? (
-          <p className="text-xs font-medium" style={{ color: "var(--gray)" }}>
-            {(() => {
-              const f = FEELINGS.find(x => x.id === done.feeling);
-              return <>Hoje sentes-te: <span style={{ color: "var(--black)", fontWeight: 700 }}>{f?.emoji} {f?.label}</span>. Bom treino! 💪</>;
-            })()}
-          </p>
+        {done && !correcting ? (
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium" style={{ color: "var(--gray)" }}>
+              {(() => {
+                const f = FEELINGS.find(x => x.id === done.feeling);
+                return <>Hoje sentes-te: <span style={{ color: "var(--black)", fontWeight: 700 }}>{f?.emoji} {f?.label}</span>. Bom treino! 💪</>;
+              })()}
+            </p>
+            <button onClick={() => setCorrecting(true)}
+              className="flex items-center gap-1 text-[11px] font-semibold cursor-pointer shrink-0" style={{ color: p.color }}>
+              <Pencil size={11} /> corrigir
+            </button>
+          </div>
         ) : (
           <>
             <p className="text-xs font-bold mb-2.5" style={{ color: "var(--black)" }}>Como te sentes hoje?</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {FEELINGS.map(f => (
-                <button key={f.id} onClick={() => checkin.mutate(f.id)} disabled={checkin.isPending}
-                  className="flex flex-col items-center gap-1 py-2.5 rounded-xl cursor-pointer transition-all hover:scale-105 disabled:opacity-50"
-                  style={{ background: "var(--white)" }}>
-                  <span className="text-xl">{f.emoji}</span>
-                  <span className="text-[10px] font-semibold text-center leading-tight" style={{ color: "var(--gray)" }}>{f.label}</span>
-                </button>
-              ))}
+              {FEELINGS.map(f => {
+                const selected = done?.feeling === f.id;
+                return (
+                  <button key={f.id} onClick={() => checkin.mutate(f.id)} disabled={checkin.isPending}
+                    className="flex flex-col items-center gap-1 py-2.5 rounded-xl cursor-pointer transition-all hover:scale-105 disabled:opacity-50"
+                    style={selected ? { background: p.color + "20", border: `1.5px solid ${p.color}` } : { background: "var(--white)", border: "1.5px solid transparent" }}>
+                    <span className="text-xl">{f.emoji}</span>
+                    <span className="text-[10px] font-semibold text-center leading-tight" style={{ color: selected ? p.color : "var(--gray)" }}>{f.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}

@@ -191,6 +191,14 @@ export default function CycleGuide() {
         O período começou hoje
       </button>
 
+      {/* Corrigir dados caso o registo esteja errado */}
+      <button onClick={() => { setForm({ lastPeriodStart: cycle.lastPeriodStart, cycleLength: String(cycle.cycleLength), periodLength: String(cycle.periodLength) }); setEditing(true); }}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold cursor-pointer transition-opacity hover:opacity-80"
+        style={{ background: "var(--cream)", color: "var(--gray)" }}>
+        <Settings2 size={15} />
+        Corrigir dados do ciclo
+      </button>
+
       <Disclaimer />
     </div>
   );
