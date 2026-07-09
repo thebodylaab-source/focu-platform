@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 
 const isDate = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -43,6 +43,30 @@ export const cycleRoute = new Hono()
     if (typeof parsed === "string") return c.json({ message: parsed }, 400);
     const row = await upsert(user.id, parsed);
     return c.json({ cycle: row }, 200);
+  })
+  // Check-in de hoje (como se sente) — null se ainda não registou hoje.
+  .get("/checkin", requireAuth, async (c) => {
+    const user = c.get("user")!;
+    const [row] = await db.select().from(schema.cycleCheckins)
+      .where(and(eq(schema.cycleCheckins.userId, user.id), eq(schema.cycleCheckins.checkinDate, today())));
+    return c.json({ checkin: row ?? null }, 200);
+  })
+  // Regista/atualiza o check-in de hoje.
+  .post("/checkin", requireAuth, async (c) => {
+    const user = c.get("user")!;
+    const { feeling } = await c.req.json();
+    const allowed = ["otima", "bem", "media", "sem-energia"];
+    if (!allowed.includes(feeling)) return c.json({ message: "Estado inválido" }, 400);
+    const [existing] = await db.select().from(schema.cycleCheckins)
+      .where(and(eq(schema.cycleCheckins.userId, user.id), eq(schema.cycleCheckins.checkinDate, today())));
+    if (existing) {
+      const [row] = await db.update(schema.cycleCheckins).set({ feeling })
+        .where(eq(schema.cycleCheckins.id, existing.id)).returning();
+      return c.json({ checkin: row }, 200);
+    }
+    const [row] = await db.insert(schema.cycleCheckins)
+      .values({ userId: user.id, checkinDate: today(), feeling }).returning();
+    return c.json({ checkin: row }, 201);
   })
   // Atalho: "o período começou hoje" — atualiza só a data, mantém as durações.
   .post("/period-started", requireAuth, async (c) => {

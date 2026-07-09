@@ -12,6 +12,7 @@ import AdminPage from "./pages/admin";
 import LojaPage from "./pages/loja";
 import PrivacidadePage from "./pages/privacidade";
 import ReporPasswordPage from "./pages/repor-password";
+import CicloPage from "./pages/ciclo";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,11 @@ export default function App() {
         <Route path="/nutricao">
           <ProtectedRoute>
             <AppLayout><NutricaoPage /></AppLayout>
+          </ProtectedRoute>
+        </Route>
+        <Route path="/ciclo">
+          <ProtectedRoute>
+            <AppLayout><CicloPage /></AppLayout>
           </ProtectedRoute>
         </Route>
         <Route path="/admin">

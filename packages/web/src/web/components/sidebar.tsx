@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { authClient, clearToken } from "../lib/auth";
-import { Home, Play, FileText, Apple, LogOut, Menu, X, ChevronRight, Flame, Shield } from "lucide-react";
+import { Home, Play, FileText, Apple, LogOut, Menu, X, ChevronRight, Moon, Shield } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { path: "/videos", icon: Play, label: "Vídeos" },
   { path: "/conteudos", icon: FileText, label: "Conteúdos" },
   { path: "/nutricao", icon: Apple, label: "Nutrição" },
+  { path: "/ciclo", icon: Moon, label: "Ciclo" },
 ];
 
 const adminNavItem = { path: "/admin", icon: Shield, label: "Admin" };
