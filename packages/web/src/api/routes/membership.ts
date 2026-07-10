@@ -67,11 +67,15 @@ export const membershipRoute = new Hono()
   .post("/", requireAuth, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
+    // Só campos permitidos — nunca escrever userId/status arbitrários vindos do cliente.
+    const allowed: { plan?: string } = {};
+    if (typeof body.plan === "string" && body.plan.length <= 40) allowed.plan = body.plan;
+
     const existing = await db.select().from(schema.memberships).where(eq(schema.memberships.userId, user.id));
     if (existing.length > 0) {
-      const [updated] = await db.update(schema.memberships).set(body).where(eq(schema.memberships.userId, user.id)).returning();
+      const [updated] = await db.update(schema.memberships).set(allowed).where(eq(schema.memberships.userId, user.id)).returning();
       return c.json({ membership: updated }, 200);
     }
-    const [created] = await db.insert(schema.memberships).values({ userId: user.id, ...body }).returning();
+    const [created] = await db.insert(schema.memberships).values({ userId: user.id, ...allowed }).returning();
     return c.json({ membership: created }, 201);
   });

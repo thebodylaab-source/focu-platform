@@ -5,6 +5,7 @@ import { expo } from "@better-auth/expo";
 import { eq } from "drizzle-orm";
 import { db } from "./database";
 import { paidCustomers } from "./database/schema";
+import { allowedWebOrigins, isTrustedOrigin } from "./lib/origins";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "thebodylaab@gmail.com";
 
@@ -26,6 +27,9 @@ export const auth = betterAuth({
       // Com RESEND_API_KEY envia email real; sem ela regista no log do servidor
       // (suficiente para o admin ajudar manualmente até configurar o Resend).
       const key = process.env.RESEND_API_KEY;
+      // Escapa o nome (controlado pela utilizadora) antes de o meter no HTML do email.
+      const safeName = (user.name ?? "").replace(/[<>&"]/g, (ch) =>
+        ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[ch] as string));
       if (key) {
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -34,7 +38,7 @@ export const auth = betterAuth({
             from: process.env.EMAIL_FROM ?? "FO.CU <onboarding@resend.dev>",
             to: user.email,
             subject: "Recuperar palavra-passe — FO.CU",
-            html: `<p>Olá${user.name ? ` ${user.name}` : ""},</p>
+            html: `<p>Olá${safeName ? ` ${safeName}` : ""},</p>
 <p>Recebemos um pedido para repor a tua palavra-passe na FO.CU.</p>
 <p><a href="${url}" style="display:inline-block;padding:12px 24px;background:#E8590C;color:#fff;border-radius:12px;text-decoration:none;font-weight:bold">Repor palavra-passe</a></p>
 <p>Se não foste tu, ignora este email — a tua conta continua segura.</p>`,
@@ -47,9 +51,13 @@ export const auth = betterAuth({
     },
   },
   secret: process.env.BETTER_AUTH_SECRET,
+  // Origens de confiança (CSRF): domínios web conhecidos + a origem do pedido
+  // apenas se for de confiança (web permitida ou esquema nativo da app).
   trustedOrigins: (request) => {
+    const origins = new Set(allowedWebOrigins());
     const origin = request?.headers.get("origin");
-    return origin ? [origin] : ["*"];
+    if (isTrustedOrigin(origin)) origins.add(origin!);
+    return [...origins];
   },
   plugins: [bearer(), expo()],
   user: {

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export * from "./auth-schema";
 
@@ -154,7 +154,10 @@ export const aiGenerations = sqliteTable("ai_generations", {
   userId: text("user_id").notNull(),
   genDate: text("gen_date").notNull(), // YYYY-MM-DD
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
-});
+}, (t) => ({
+  // 1 por (utilizador, dia) — trava o limite mesmo com pedidos simultâneos.
+  userDay: uniqueIndex("ai_generations_user_day").on(t.userId, t.genDate),
+}));
 
 // Subscrições Web Push (uma por browser/dispositivo)
 export const pushSubscriptions = sqliteTable("push_subscriptions", {

@@ -8,17 +8,23 @@ import Anthropic from "@anthropic-ai/sdk";
 // IA ligada diretamente à chave Anthropic (independente de qualquer gateway).
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Controlo de custos: cada aluno pode gerar 1 receita por dia (persistido
-// na base de dados — sobrevive a reinícios do servidor). Admin sem limite.
-const DAILY_LIMIT = 1;
+// Controlo de custos: cada aluno gera 1 receita por dia. A reserva é feita
+// ANTES de chamar a IA (com restrição única (userId, genDate) na base, à prova
+// de pedidos simultâneos). Se a geração falhar, a reserva é devolvida para a
+// aluna poder tentar de novo — não perde o dia por um erro da IA.
+const today = () => new Date().toISOString().split("T")[0];
 
-async function checkDailyLimit(userId: string): Promise<boolean> {
-  const today = new Date().toISOString().split("T")[0];
-  const rows = await db.select().from(schema.aiGenerations)
-    .where(and(eq(schema.aiGenerations.userId, userId), eq(schema.aiGenerations.genDate, today)));
-  if (rows.length >= DAILY_LIMIT) return false;
-  await db.insert(schema.aiGenerations).values({ userId, genDate: today });
-  return true;
+async function reserveDailyGeneration(userId: string): Promise<boolean> {
+  const [row] = await db.insert(schema.aiGenerations)
+    .values({ userId, genDate: today() })
+    .onConflictDoNothing()
+    .returning();
+  return !!row; // inseriu → reservado; conflito → já usou hoje
+}
+
+async function rollbackDailyGeneration(userId: string): Promise<void> {
+  await db.delete(schema.aiGenerations)
+    .where(and(eq(schema.aiGenerations.userId, userId), eq(schema.aiGenerations.genDate, today())));
 }
 
 // Extrai o primeiro objeto JSON completo (chavetas equilibradas, ignora strings).
@@ -70,11 +76,13 @@ export const recipesRoute = new Hono()
     return c.json({ recipe }, 201);
   })
   .post("/generate", requireAuth, async (c) => {
+    const user = c.get("user")!;
+    const isAdmin = user.role === "admin";
+    // Reserva o dia ANTES de qualquer trabalho (à prova de concorrência).
+    if (!isAdmin && !(await reserveDailyGeneration(user.id))) {
+      return c.json({ error: "Já geraste a tua receita de hoje. 🍑 Volta amanhã para uma nova!" }, 429);
+    }
     try {
-      const user = c.get("user")!;
-      if (user.role !== "admin" && !(await checkDailyLimit(user.id))) {
-        return c.json({ error: "Já geraste a tua receita de hoje. 🍑 Volta amanhã para uma nova!" }, 429);
-      }
       const { prompt } = await c.req.json();
       const userPrompt = prompt || "Cria uma receita saudável e equilibrada para uma mulher a fazer um desafio de glúteos";
 
@@ -110,6 +118,7 @@ Usa português de Portugal.`;
 
       const recipe = extractJson(raw);
       if (!recipe || typeof recipe.title !== "string") {
+        if (!isAdmin) await rollbackDailyGeneration(user.id); // falhou → devolve o dia
         return c.json({ error: "Resposta inválida da IA. Tenta novamente." }, 500);
       }
 
@@ -120,6 +129,7 @@ Usa português de Portugal.`;
       
       return c.json({ recipe }, 200);
     } catch (e: any) {
+      if (!isAdmin) await rollbackDailyGeneration(user.id); // falhou → devolve o dia
       console.error("Generate recipe error:", e);
       return c.json({ error: e.message || "Erro interno" }, 500);
     }
