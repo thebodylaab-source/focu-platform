@@ -1,0 +1,30 @@
+name: CI
+
+# Corre em cada push e em cada Pull Request para main.
+# Garante que a lógica (ex: fases do ciclo) e os tipos continuam corretos
+# em qualquer alteração futura — se algo partir, o PR fica marcado a vermelho.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Instalar dependências
+        run: bun install --frozen-lockfile
+
+      - name: Verificar tipos (TypeScript)
+        run: cd packages/web && bun run typecheck
+
+      - name: Correr testes
+        run: cd packages/web && bun test
