@@ -17,37 +17,57 @@ async function hasPaid(email: string): Promise<boolean> {
   return !!row;
 }
 
+const escapeHtml = (s: string) =>
+  (s ?? "").replace(/[<>&"]/g, (ch) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[ch] as string));
+
+// Envia um email via Resend. Sem RESEND_API_KEY, regista o link no log do
+// servidor (suficiente para o admin ajudar até o Resend estar configurado).
+async function sendEmail(to: string, subject: string, html: string, logLabel: string, logUrl: string) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    console.log(`✉️ ${logLabel} para ${to}: ${logUrl}`);
+    return;
+  }
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: process.env.EMAIL_FROM ?? "FO.CU <onboarding@resend.dev>", to, subject, html }),
+  });
+  if (!res.ok) console.error(`Falha ao enviar email (${logLabel}):`, await res.text());
+}
+
 export const auth = betterAuth({
   basePath: "/api/auth",
   baseURL: process.env.WEBSITE_URL,
   database: drizzleAdapter(db, { provider: "sqlite" }),
   emailAndPassword: {
     enabled: true,
+    // #1: exige confirmação de email antes de entrar — fecha o bypass de
+    // pagamento (registar com o email de outra pessoa que pagou).
+    // SÓ é obrigatória se houver serviço de email (RESEND_API_KEY): sem ele os
+    // links só iriam para o log e ninguém conseguiria confirmar → não bloqueia.
+    requireEmailVerification: !!process.env.RESEND_API_KEY,
     sendResetPassword: async ({ user, url }) => {
-      // Com RESEND_API_KEY envia email real; sem ela regista no log do servidor
-      // (suficiente para o admin ajudar manualmente até configurar o Resend).
-      const key = process.env.RESEND_API_KEY;
-      // Escapa o nome (controlado pela utilizadora) antes de o meter no HTML do email.
-      const safeName = (user.name ?? "").replace(/[<>&"]/g, (ch) =>
-        ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[ch] as string));
-      if (key) {
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: process.env.EMAIL_FROM ?? "FO.CU <onboarding@resend.dev>",
-            to: user.email,
-            subject: "Recuperar palavra-passe — FO.CU",
-            html: `<p>Olá${safeName ? ` ${safeName}` : ""},</p>
+      const nome = escapeHtml(user.name ?? "");
+      await sendEmail(user.email, "Recuperar palavra-passe — FO.CU",
+        `<p>Olá${nome ? ` ${nome}` : ""},</p>
 <p>Recebemos um pedido para repor a tua palavra-passe na FO.CU.</p>
 <p><a href="${url}" style="display:inline-block;padding:12px 24px;background:#E8590C;color:#fff;border-radius:12px;text-decoration:none;font-weight:bold">Repor palavra-passe</a></p>
 <p>Se não foste tu, ignora este email — a tua conta continua segura.</p>`,
-          }),
-        });
-        if (!res.ok) console.error("Falha ao enviar email de reset:", await res.text());
-      } else {
-        console.log(`🔑 Reset de password pedido para ${user.email}: ${url}`);
-      }
+        "Reset de password", url);
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      const nome = escapeHtml(user.name ?? "");
+      await sendEmail(user.email, "Confirma o teu email — FO.CU",
+        `<p>Olá${nome ? ` ${nome}` : ""}! 🍑</p>
+<p>Bem-vinda à FO.CU. Confirma o teu email para ativares a conta:</p>
+<p><a href="${url}" style="display:inline-block;padding:12px 24px;background:#E8590C;color:#fff;border-radius:12px;text-decoration:none;font-weight:bold">Confirmar email</a></p>
+<p>Se não foste tu que te registaste, ignora este email.</p>`,
+        "Confirmação de email", url);
     },
   },
   secret: process.env.BETTER_AUTH_SECRET,
