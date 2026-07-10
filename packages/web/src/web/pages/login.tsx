@@ -17,6 +17,19 @@ export default function LoginPage() {
   const [acceptedRgpd, setAcceptedRgpd] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotMsg, setForgotMsg] = useState("");
+  const [verifyEmailSent, setVerifyEmailSent] = useState(false); // registo feito, à espera de confirmação
+  const [needsVerification, setNeedsVerification] = useState(false); // login bloqueado por email não confirmado
+  const [resendMsg, setResendMsg] = useState("");
+
+  const resendVerification = async () => {
+    setResendMsg("");
+    try {
+      await authClient.sendVerificationEmail({ email, callbackURL: "/" });
+      setResendMsg("Email reenviado! Confirma a tua caixa de entrada.");
+    } catch {
+      setResendMsg("Não foi possível reenviar. Tenta daqui a pouco.");
+    }
+  };
 
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,11 +57,22 @@ export default function LoginPage() {
     setError("");
     try {
       if (mode === "signup") {
-        const res = await authClient.signUp.email({ name, email, password }, { onSuccess: captureToken });
+        const res = await authClient.signUp.email({ name, email, password, callbackURL: "/" } as any, { onSuccess: captureToken });
         if (res.error) { setError(res.error.message ?? "Erro ao criar conta"); return; }
+        // Com verificação de email, a conta não entra já — mostra ecrã de confirmação.
+        setVerifyEmailSent(true);
+        return;
       } else {
         const res = await authClient.signIn.email({ email, password }, { onSuccess: captureToken });
-        if (res.error) { setError(res.error.message ?? "Email ou palavra-passe inválidos"); return; }
+        if (res.error) {
+          // Email por confirmar → oferece reenvio em vez de erro genérico.
+          if (res.error.status === 403 || /verif/i.test(res.error.message ?? "")) {
+            setNeedsVerification(true);
+            return;
+          }
+          setError(res.error.message ?? "Email ou palavra-passe inválidos");
+          return;
+        }
       }
       navigate("/");
     } catch (err: any) {
@@ -90,6 +114,31 @@ export default function LoginPage() {
         <img src="/focu-logo.jpg" alt="FO.CU" className="w-28 mb-8 lg:hidden rounded-xl" />
 
         <div className="w-full max-w-md">
+          {/* Ecrã de confirmação de email (registo ou login bloqueado) */}
+          {(verifyEmailSent || needsVerification) ? (
+            <div className="rounded-3xl p-8 text-center" style={{ background: "var(--white)", boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }}>
+              <div className="text-5xl mb-4">📧</div>
+              <h2 className="text-2xl font-black mb-2" style={{ color: "var(--black)" }}>Confirma o teu email</h2>
+              <p className="text-sm mb-6" style={{ color: "var(--gray)" }}>
+                {verifyEmailSent
+                  ? <>Enviámos um link de confirmação para <strong style={{ color: "var(--black)" }}>{email}</strong>. Abre-o para ativar a conta e entrar.</>
+                  : <>A tua conta ainda não foi confirmada. Verifica o email <strong style={{ color: "var(--black)" }}>{email}</strong> ou reenvia o link.</>}
+              </p>
+              {resendMsg && (
+                <div className="text-sm font-medium px-4 py-3 rounded-xl mb-4" style={{ background: "#DCFCE7", color: "#16A34A" }}>{resendMsg}</div>
+              )}
+              <button onClick={resendVerification}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white cursor-pointer mb-3"
+                style={{ background: "var(--orange)" }}>
+                Reenviar email de confirmação
+              </button>
+              <button onClick={() => { setVerifyEmailSent(false); setNeedsVerification(false); setResendMsg(""); setMode("login"); }}
+                className="w-full text-xs underline cursor-pointer" style={{ color: "var(--gray)" }}>
+                Voltar ao login
+              </button>
+            </div>
+          ) : (
+          <>
           {/* Mode toggle */}
           <div className="flex rounded-2xl p-1 mb-8" style={{ background: "var(--peach)" }}>
             {(["login", "signup"] as const).map(m => (
@@ -238,6 +287,8 @@ export default function LoginPage() {
           <p className="text-center text-xs mt-2" style={{ color: "var(--gray)" }}>
             By The Body Lab — todos os direitos reservados
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>
