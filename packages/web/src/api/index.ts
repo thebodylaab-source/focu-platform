@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from "hono/cors";
+import { isAllowedWebOrigin } from "./lib/origins";
 import { auth } from "./auth";
 import { authMiddleware } from "./middleware/auth";
 import { videosRoute } from "./routes/videos";
@@ -14,7 +15,13 @@ import { progressRoute } from "./routes/progress";
 import { pushRoute } from "./routes/push";
 import { cycleRoute } from "./routes/cycle";
 
-const corsMiddleware = cors({ origin: (origin) => origin ?? "*", credentials: true, exposeHeaders: ["set-auth-token"] });
+// CORS restrito às origens web conhecidas (+ localhost em dev). Apps nativas
+// não passam por CORS (é uma proteção de browser), por isso não são afetadas.
+const corsMiddleware = cors({
+  origin: (origin) => (isAllowedWebOrigin(origin) ? origin : null),
+  credentials: true,
+  exposeHeaders: ["set-auth-token"],
+});
 
 // API sub-app (all under /api/*)
 const apiApp = new Hono()
