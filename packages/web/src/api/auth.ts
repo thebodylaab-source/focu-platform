@@ -70,6 +70,19 @@ export const auth = betterAuth({
         "Confirmação de email", url);
     },
   },
+  // Login social com Google — ativo só se as credenciais estiverem definidas.
+  // A conta criada passa pelo mesmo hook de role (admin/pago/pendente) e o
+  // email vem já verificado pelo Google.
+  ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ? {
+        socialProviders: {
+          google: {
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          },
+        },
+      }
+    : {}),
   secret: process.env.BETTER_AUTH_SECRET,
   // Origens de confiança (CSRF): domínios web conhecidos + a origem do pedido
   // apenas se for de confiança (web permitida ou esquema nativo da app).

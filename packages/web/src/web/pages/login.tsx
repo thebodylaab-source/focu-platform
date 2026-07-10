@@ -1,7 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { authClient, captureToken } from "../lib/auth";
 import { useLocation } from "wouter";
 import { Eye, EyeOff, Flame } from "lucide-react";
+
+// Logo Google (multicolor) inline — evita depender de recursos externos.
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92a8.78 8.78 0 0 0 2.68-6.62z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z" />
+      <path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z" />
+    </svg>
+  );
+}
 
 export default function LoginPage() {
   const [location, navigate] = useLocation();
@@ -20,6 +32,23 @@ export default function LoginPage() {
   const [verifyEmailSent, setVerifyEmailSent] = useState(false); // registo feito, à espera de confirmação
   const [needsVerification, setNeedsVerification] = useState(false); // login bloqueado por email não confirmado
   const [resendMsg, setResendMsg] = useState("");
+  const [googleAuth, setGoogleAuth] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((d) => setGoogleAuth(!!d.googleAuth))
+      .catch(() => {});
+  }, []);
+
+  const handleGoogle = async () => {
+    setError("");
+    try {
+      await authClient.signIn.social({ provider: "google", callbackURL: "/" });
+    } catch {
+      setError("Não foi possível iniciar com o Google. Tenta novamente.");
+    }
+  };
 
   const resendVerification = async () => {
     setResendMsg("");
@@ -159,6 +188,32 @@ export default function LoginPage() {
           <p className="text-sm mb-8" style={{ color: "var(--gray)" }}>
             {mode === "login" ? "Entra na tua conta para continuar o desafio." : "Cria a tua conta e começa hoje."}
           </p>
+
+          {/* Login com Google (só se configurado no servidor) */}
+          {googleAuth && !forgotMode && (
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={handleGoogle}
+                className="w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-semibold cursor-pointer border transition-opacity hover:opacity-80"
+                style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }}
+              >
+                <GoogleIcon />
+                {mode === "login" ? "Entrar com Google" : "Criar conta com Google"}
+              </button>
+              <div className="flex items-center gap-3 my-6">
+                <div className="flex-1 h-px" style={{ background: "var(--gray-lt)" }} />
+                <span className="text-xs" style={{ color: "var(--gray)" }}>ou</span>
+                <div className="flex-1 h-px" style={{ background: "var(--gray-lt)" }} />
+              </div>
+              {mode === "signup" && (
+                <p className="text-[10px] text-center -mt-3 mb-1" style={{ color: "var(--gray)" }}>
+                  Ao continuar com o Google aceitas a{" "}
+                  <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--orange)" }}>Política de Privacidade</a>.
+                </p>
+              )}
+            </div>
+          )}
 
           {forgotMode ? (
             <form onSubmit={handleForgot} className="space-y-4">
