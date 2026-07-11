@@ -1,14 +1,25 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ChevronRight, Moon, Pencil } from "lucide-react";
+import { ChevronRight, Moon, Pencil, Check } from "lucide-react";
 import { getToken } from "../lib/auth";
 import { computeCycle } from "../lib/cycle";
 
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
 
 type CycleRow = { lastPeriodStart: string; cycleLength: number; periodLength: number } | null;
-type Checkin = { feeling: string; symptoms?: string; hungerEmotional?: string | null; hungerControl?: string | null } | null;
+type Checkin = { feeling: string; symptoms?: string; context?: string; hungerEmotional?: string | null; hungerControl?: string | null } | null;
+
+const CONTEXT = [
+  { id: "trabalho", emoji: "💼", label: "Stress trabalho" },
+  { id: "escola", emoji: "📚", label: "Stress escola" },
+  { id: "ansiedade", emoji: "😰", label: "Ansiedade" },
+  { id: "sono-mau", emoji: "🌙", label: "Dormi mal" },
+  { id: "treino", emoji: "🏃", label: "Treinei" },
+  { id: "relax", emoji: "🧘", label: "Dia calmo" },
+];
+
+const doneKey = () => `cycle-checkin-done-${new Date().toISOString().split("T")[0]}`;
 
 const FEELINGS = [
   { id: "otima", emoji: "🔥", label: "Cheia de energia" },
@@ -30,6 +41,14 @@ const SYMPTOMS = [
 export function DailyCyclePrompt() {
   const qc = useQueryClient();
   const [correcting, setCorrecting] = useState(false);
+  // "Validado" = a aluna carregou em Guardar; colapsa o registo (por dia).
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(doneKey()) === "1"; } catch { return false; }
+  });
+  const markCollapsed = (v: boolean) => {
+    setCollapsed(v);
+    try { v ? localStorage.setItem(doneKey(), "1") : localStorage.removeItem(doneKey()); } catch { /* ignore */ }
+  };
 
   const { data: cycleData, isLoading } = useQuery({
     queryKey: ["cycle"],
@@ -67,6 +86,14 @@ export function DailyCyclePrompt() {
   const saveHunger = useMutation({
     mutationFn: async (patch: { hungerEmotional?: string; hungerControl?: string }) => {
       const res = await fetch("/api/cycle/checkin", { method: "POST", headers: authHeaders(), body: JSON.stringify(patch) });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle-checkin"] }),
+  });
+
+  const saveContext = useMutation({
+    mutationFn: async (context: string[]) => {
+      const res = await fetch("/api/cycle/checkin", { method: "POST", headers: authHeaders(), body: JSON.stringify({ context }) });
       return res.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle-checkin"] }),
@@ -113,7 +140,13 @@ export function DailyCyclePrompt() {
         </div>
       </Link>
 
-      {/* Pergunta diária */}
+      {/* Registo diário — colapsa depois de guardar (por dia) */}
+      {done && collapsed ? (
+        <div className="mt-4 pt-4 flex items-center justify-between gap-2" style={{ borderTop: `1px solid ${p.color}25` }}>
+          <p className="text-xs font-semibold" style={{ color: "#16A34A" }}>✓ Registo de hoje guardado</p>
+          <button onClick={() => markCollapsed(false)} className="text-[11px] font-semibold underline cursor-pointer" style={{ color: p.color }}>editar</button>
+        </div>
+      ) : (
       <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${p.color}25` }}>
         {done && !correcting ? (
           <div className="flex items-center justify-between gap-2">
@@ -198,7 +231,44 @@ export function DailyCyclePrompt() {
             </div>
           </div>
         )}
+
+        {/* Contexto/fatores do dia — stress, sono, etc. (opcional) */}
+        {done && !correcting && (() => {
+          let selected: string[] = [];
+          try { selected = JSON.parse(done.context || "[]"); } catch { /* ignore */ }
+          const toggle = (id: string) => {
+            const next = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id];
+            saveContext.mutate(next);
+          };
+          return (
+            <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${p.color}20` }}>
+              <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--gray)" }}>O que marcou o teu dia? <span style={{ opacity: 0.6 }}>(opcional)</span></p>
+              <div className="flex flex-wrap gap-1.5">
+                {CONTEXT.map(s => {
+                  const on = selected.includes(s.id);
+                  return (
+                    <button key={s.id} onClick={() => toggle(s.id)} disabled={saveContext.isPending}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all disabled:opacity-50"
+                      style={on ? { background: p.color, color: "white" } : { background: "var(--white)", color: "var(--gray)" }}>
+                      <span>{s.emoji}</span> {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Botão de validar/guardar o registo do dia */}
+        {done && !correcting && (
+          <button onClick={() => markCollapsed(true)}
+            className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white cursor-pointer transition-opacity hover:opacity-90"
+            style={{ background: p.color }}>
+            <Check size={16} /> Guardar registo de hoje
+          </button>
+        )}
       </div>
+      )}
     </div>
   );
 }
