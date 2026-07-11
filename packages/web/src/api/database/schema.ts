@@ -123,8 +123,11 @@ export const paidCustomers = sqliteTable("paid_customers", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),
   stripeCustomerId: text("stripe_customer_id"),
-  plan: text("plan"),
+  plan: text("plan"), // mensal-recorrente | mensal-avulso
   paidAt: integer("paid_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  // Fim do prazo pago. NULL = sem expiração (legado / vitalício). Quando passa,
+  // a reconciliação despromove o membro para pendente.
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
 });
 
 // Ciclo menstrual — usado para dar orientação diária de treino e nutrição

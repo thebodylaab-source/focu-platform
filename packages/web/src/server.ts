@@ -1,4 +1,18 @@
 import app from "./api";
+import { reconcileExpirations } from "./api/lib/access";
+
+// Reconciliação de expirações: despromove membros expirados e repromove
+// pendentes renovados. Corre no arranque e depois de hora a hora.
+async function runReconcile() {
+  try {
+    const r = await reconcileExpirations();
+    if (r.downgraded || r.upgraded) console.log(`🔄 Reconciliação de acesso: -${r.downgraded} +${r.upgraded}`);
+  } catch (e) {
+    console.error("Erro na reconciliação de expirações:", e);
+  }
+}
+runReconcile();
+setInterval(runReconcile, 60 * 60 * 1000);
 
 const port = Number(process.env.PORT ?? 3000);
 const distDir = `${import.meta.dir}/../dist`;

@@ -32,6 +32,7 @@ const apiApp = new Hono()
   .get("/config", (c) => c.json({
     googleAuth: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
     paymentLink: process.env.STRIPE_PAYMENT_LINK ?? "https://buy.stripe.com/14AfZj0jY7mZ5HB4dMfjG00",
+    subscriptionLink: process.env.STRIPE_SUBSCRIPTION_LINK ?? null,
   }, 200))
   .route("/videos", videosRoute)
   .route("/documents", documentsRoute)
