@@ -20,9 +20,23 @@ async function hasPaid(email: string): Promise<boolean> {
 const escapeHtml = (s: string) =>
   (s ?? "").replace(/[<>&"]/g, (ch) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[ch] as string));
 
+// Envolve o conteúdo do email num template com o logo da FO.CU no topo.
+const LOGO_URL = `${(process.env.WEBSITE_URL ?? "https://www.focu.pt").replace(/\/+$/, "")}/focu-logo.jpg`;
+function emailTemplate(inner: string): string {
+  return `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1a1a1a">
+  <div style="text-align:center;margin-bottom:24px">
+    <img src="${LOGO_URL}" alt="FO.CU" width="88" style="width:88px;height:auto;border-radius:14px" />
+  </div>
+  <div style="background:#fff;border:1px solid #f0e6df;border-radius:16px;padding:24px">
+    ${inner}
+  </div>
+  <p style="font-size:11px;color:#999;text-align:center;margin-top:20px">FO.CU — By The Body Lab 🍑</p>
+</div>`;
+}
+
 // Envia um email via Resend. Sem RESEND_API_KEY, regista o link no log do
 // servidor (suficiente para o admin ajudar até o Resend estar configurado).
-async function sendEmail(to: string, subject: string, html: string, logLabel: string, logUrl: string) {
+async function sendEmail(to: string, subject: string, inner: string, logLabel: string, logUrl: string) {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.log(`✉️ ${logLabel} para ${to}: ${logUrl}`);
@@ -31,7 +45,7 @@ async function sendEmail(to: string, subject: string, html: string, logLabel: st
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: process.env.EMAIL_FROM ?? "FO.CU <onboarding@resend.dev>", to, subject, html }),
+    body: JSON.stringify({ from: process.env.EMAIL_FROM ?? "FO.CU <onboarding@resend.dev>", to, subject, html: emailTemplate(inner) }),
   });
   if (!res.ok) console.error(`Falha ao enviar email (${logLabel}):`, await res.text());
 }
