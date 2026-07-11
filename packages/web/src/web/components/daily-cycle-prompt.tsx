@@ -10,15 +10,6 @@ const authHeaders = () => ({ "Content-Type": "application/json", Authorization: 
 type CycleRow = { lastPeriodStart: string; cycleLength: number; periodLength: number } | null;
 type Checkin = { feeling: string; symptoms?: string; context?: string; hungerEmotional?: string | null; hungerControl?: string | null } | null;
 
-const CONTEXT = [
-  { id: "trabalho", emoji: "💼", label: "Stress trabalho" },
-  { id: "escola", emoji: "📚", label: "Stress escola" },
-  { id: "ansiedade", emoji: "😰", label: "Ansiedade" },
-  { id: "sono-mau", emoji: "🌙", label: "Dormi mal" },
-  { id: "treino", emoji: "🏃", label: "Treinei" },
-  { id: "relax", emoji: "🧘", label: "Dia calmo" },
-];
-
 const doneKey = () => `cycle-checkin-done-${new Date().toISOString().split("T")[0]}`;
 
 const FEELINGS = [
@@ -29,12 +20,17 @@ const FEELINGS = [
 ];
 
 const SYMPTOMS: { id: string; emoji: string; label: string; positive?: boolean }[] = [
-  // Negativos
+  // Negativos / físicos / stress da vida
   { id: "colicas", emoji: "🩸", label: "Cólicas" },
   { id: "inchaco", emoji: "🎈", label: "Inchaço" },
   { id: "humor", emoji: "😔", label: "Humor em baixo" },
-  { id: "sono", emoji: "😴", label: "Sono fraco" },
   { id: "desejos", emoji: "🍫", label: "Desejos" },
+  { id: "cansada", emoji: "🥱", label: "Cansada" },
+  { id: "irritada", emoji: "😤", label: "Irritada" },
+  { id: "ansiedade", emoji: "😰", label: "Ansiedade" },
+  { id: "sono-mau", emoji: "🌙", label: "Dormi mal" },
+  { id: "trabalho", emoji: "💼", label: "Stress trabalho" },
+  { id: "escola", emoji: "📚", label: "Stress escola" },
   // Positivos
   { id: "humor-bom", emoji: "😊", label: "Bem-disposta", positive: true },
   { id: "motivada", emoji: "💪", label: "Motivada", positive: true },
@@ -42,6 +38,12 @@ const SYMPTOMS: { id: string; emoji: string; label: string; positive?: boolean }
   { id: "pele-boa", emoji: "✨", label: "Pele bonita", positive: true },
   { id: "libido", emoji: "🔥", label: "Libido alta", positive: true },
   { id: "sono-bom", emoji: "🛌", label: "Dormi bem", positive: true },
+  { id: "treino", emoji: "🏃", label: "Treinei", positive: true },
+  { id: "produtiva", emoji: "🎯", label: "Produtiva", positive: true },
+  { id: "grata", emoji: "🥰", label: "Grata", positive: true },
+  { id: "hidratada", emoji: "💧", label: "Hidratada", positive: true },
+  { id: "comi-bem", emoji: "🍎", label: "Comi bem", positive: true },
+  { id: "relax", emoji: "🧘", label: "Dia calmo", positive: true },
 ];
 
 // Bloco diário no dashboard: mostra a fase do ciclo e pergunta como te sentes
@@ -94,14 +96,6 @@ export function DailyCyclePrompt() {
   const saveHunger = useMutation({
     mutationFn: async (patch: { hungerEmotional?: string; hungerControl?: string }) => {
       const res = await fetch("/api/cycle/checkin", { method: "POST", headers: authHeaders(), body: JSON.stringify(patch) });
-      return res.json();
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle-checkin"] }),
-  });
-
-  const saveContext = useMutation({
-    mutationFn: async (context: string[]) => {
-      const res = await fetch("/api/cycle/checkin", { method: "POST", headers: authHeaders(), body: JSON.stringify({ context }) });
       return res.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle-checkin"] }),
@@ -240,33 +234,6 @@ export function DailyCyclePrompt() {
             </div>
           </div>
         )}
-
-        {/* Contexto/fatores do dia — stress, sono, etc. (opcional) */}
-        {done && !correcting && (() => {
-          let selected: string[] = [];
-          try { selected = JSON.parse(done.context || "[]"); } catch { /* ignore */ }
-          const toggle = (id: string) => {
-            const next = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id];
-            saveContext.mutate(next);
-          };
-          return (
-            <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${p.color}20` }}>
-              <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--gray)" }}>O que marcou o teu dia? <span style={{ opacity: 0.6 }}>(opcional)</span></p>
-              <div className="flex flex-wrap gap-1.5">
-                {CONTEXT.map(s => {
-                  const on = selected.includes(s.id);
-                  return (
-                    <button key={s.id} onClick={() => toggle(s.id)} disabled={saveContext.isPending}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all disabled:opacity-50"
-                      style={on ? { background: p.color, color: "white" } : { background: "var(--white)", color: "var(--gray)" }}>
-                      <span>{s.emoji}</span> {s.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
 
         {/* Botão de validar/guardar o registo do dia */}
         {done && !correcting && (
