@@ -28,12 +28,20 @@ const FEELINGS = [
   { id: "sem-energia", emoji: "😴", label: "Sem energia" },
 ];
 
-const SYMPTOMS = [
+const SYMPTOMS: { id: string; emoji: string; label: string; positive?: boolean }[] = [
+  // Negativos
   { id: "colicas", emoji: "🩸", label: "Cólicas" },
   { id: "inchaco", emoji: "🎈", label: "Inchaço" },
-  { id: "humor", emoji: "😔", label: "Humor" },
+  { id: "humor", emoji: "😔", label: "Humor em baixo" },
   { id: "sono", emoji: "😴", label: "Sono fraco" },
   { id: "desejos", emoji: "🍫", label: "Desejos" },
+  // Positivos
+  { id: "humor-bom", emoji: "😊", label: "Bem-disposta", positive: true },
+  { id: "motivada", emoji: "💪", label: "Motivada", positive: true },
+  { id: "energia-boa", emoji: "⚡", label: "Cheia de energia", positive: true },
+  { id: "pele-boa", emoji: "✨", label: "Pele bonita", positive: true },
+  { id: "libido", emoji: "🔥", label: "Libido alta", positive: true },
+  { id: "sono-bom", emoji: "🛌", label: "Dormi bem", positive: true },
 ];
 
 // Bloco diário no dashboard: mostra a fase do ciclo e pergunta como te sentes
@@ -194,10 +202,11 @@ export function DailyCyclePrompt() {
               <div className="flex flex-wrap gap-1.5">
                 {SYMPTOMS.map(s => {
                   const on = selected.includes(s.id);
+                  const activeBg = s.positive ? "#16A34A" : p.color;
                   return (
                     <button key={s.id} onClick={() => toggle(s.id)} disabled={saveSymptoms.isPending}
                       className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all disabled:opacity-50"
-                      style={on ? { background: p.color, color: "white" } : { background: "var(--white)", color: "var(--gray)" }}>
+                      style={on ? { background: activeBg, color: "white" } : { background: "var(--white)", color: "var(--gray)" }}>
                       <span>{s.emoji}</span> {s.label}
                     </button>
                   );

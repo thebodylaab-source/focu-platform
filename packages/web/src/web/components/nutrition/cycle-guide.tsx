@@ -10,6 +10,7 @@ const todayStr = () => new Date().toISOString().split("T")[0];
 
 const SYMPTOM_LABELS: Record<string, string> = {
   colicas: "🩸 cólicas", inchaco: "🎈 inchaço", humor: "😔 humor em baixo", sono: "😴 sono fraco", desejos: "🍫 desejos",
+  "humor-bom": "😊 bem-disposta", motivada: "💪 motivada", "energia-boa": "⚡ energia", "pele-boa": "✨ pele bonita", libido: "🔥 libido alta", "sono-bom": "🛌 dormir bem",
 };
 const CONTEXT_LABELS: Record<string, string> = {
   trabalho: "💼 stress do trabalho", escola: "📚 stress da escola", ansiedade: "😰 ansiedade",
