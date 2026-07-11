@@ -6,15 +6,17 @@ import { eq } from "drizzle-orm";
 import { db } from "./database";
 import { paidCustomers } from "./database/schema";
 import { allowedWebOrigins, isTrustedOrigin } from "./lib/origins";
+import { isAccessValid } from "./lib/access";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "thebodylaab@gmail.com";
 
-// Verifica se um email já pagou (registado SÓ pelo webhook assinado do Stripe).
+// Verifica se um email tem acesso pago VÁLIDO (registado só pelo webhook do
+// Stripe) — pago e ainda dentro do prazo (ou sem expiração = legado).
 async function hasPaid(email: string): Promise<boolean> {
   const e = (email ?? "").trim().toLowerCase();
   if (!e) return false;
   const [row] = await db.select().from(paidCustomers).where(eq(paidCustomers.email, e));
-  return !!row;
+  return !!row && isAccessValid(row.expiresAt);
 }
 
 const escapeHtml = (s: string) =>

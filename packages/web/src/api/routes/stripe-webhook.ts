@@ -4,6 +4,7 @@ import { db } from "../database";
 import * as schema from "../database/schema";
 import { user } from "../database/auth-schema";
 import { eq } from "drizzle-orm";
+import { extendOneTime } from "../lib/access";
 
 // Lazy init para evitar falha no import quando as env vars não existem.
 let _stripe: Stripe | null = null;
@@ -41,45 +42,68 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
     return c.json({ error: "Assinatura inválida" }, 400);
   }
 
-  // Marca o email como pago (fonte de verdade) e ativa a conta se já existir.
+  // Concede/estende acesso e define a data de expiração conforme o modelo:
+  //  - recorrente: expira no fim do período pago (current_period_end)
+  //  - avulso: estende +1 mês a partir do prazo atual
   const grantAccess = async (
     email: string | null | undefined,
-    opts: { stripeCustomerId?: string | null; plan?: string | null } = {}
+    opts: { stripeCustomerId?: string | null; recurring?: boolean; periodEnd?: Date | null } = {}
   ) => {
     const e = norm(email);
     if (!e) return;
+    const [current] = await db.select().from(schema.paidCustomers).where(eq(schema.paidCustomers.email, e));
+    const now = new Date();
+    const plan = opts.recurring ? "mensal-recorrente" : "mensal-avulso";
+    const expiresAt = opts.recurring
+      ? (opts.periodEnd ?? new Date(now.getTime() + 32 * 24 * 60 * 60 * 1000)) // fallback ~1 mês + folga
+      : extendOneTime(now, current?.expiresAt);
+
     await db
       .insert(schema.paidCustomers)
-      .values({ email: e, stripeCustomerId: opts.stripeCustomerId ?? null, plan: opts.plan ?? null, paidAt: new Date() })
+      .values({ email: e, stripeCustomerId: opts.stripeCustomerId ?? null, plan, paidAt: now, expiresAt })
       .onConflictDoUpdate({
         target: schema.paidCustomers.email,
-        set: { stripeCustomerId: opts.stripeCustomerId ?? null, plan: opts.plan ?? null, paidAt: new Date() },
+        set: { stripeCustomerId: opts.stripeCustomerId ?? current?.stripeCustomerId ?? null, plan, paidAt: now, expiresAt },
       });
     const [existing] = await db.select().from(user).where(eq(user.email, e));
     if (existing && existing.role !== "admin") {
       await db.update(user).set({ role: "member" }).where(eq(user.email, e));
     }
-    console.log(`✅ Acesso concedido: ${e}`);
+    console.log(`✅ Acesso concedido (${plan}) a ${e} até ${expiresAt.toISOString()}`);
   };
 
-  // Revoga o acesso (cancelamento) — remove de paid_customers e volta a pending.
-  const revokeAccess = async (email: string | null | undefined) => {
+  // Fim de subscrição — o acesso termina agora (o evento dispara no fim do
+  // período pago, por isso "agora" corresponde ao fim do prazo).
+  const endSubscription = async (email: string | null | undefined) => {
     const e = norm(email);
     if (!e) return;
-    await db.delete(schema.paidCustomers).where(eq(schema.paidCustomers.email, e));
+    await db.update(schema.paidCustomers).set({ expiresAt: new Date() }).where(eq(schema.paidCustomers.email, e));
     const [existing] = await db.select().from(user).where(eq(user.email, e));
     if (existing && existing.role !== "admin") {
       await db.update(user).set({ role: "pending" }).where(eq(user.email, e));
     }
-    console.log(`⛔ Acesso revogado: ${e}`);
+    console.log(`⛔ Subscrição terminada: ${e}`);
+  };
+
+  // Obtém o fim do período de uma subscrição (para a expiração recorrente).
+  const periodEndOf = async (subscriptionId?: string | null): Promise<Date | null> => {
+    if (!subscriptionId) return null;
+    try {
+      const sub = await getStripe().subscriptions.retrieve(subscriptionId);
+      const end = (sub as any).current_period_end;
+      return end ? new Date(end * 1000) : null;
+    } catch { return null; }
   };
 
   switch (event.type) {
     case "checkout.session.completed": {
       const s = event.data.object as Stripe.Checkout.Session;
       if (s.payment_status === "paid" || s.status === "complete") {
+        const recurring = s.mode === "subscription";
+        const periodEnd = recurring ? await periodEndOf(typeof s.subscription === "string" ? s.subscription : null) : null;
         await grantAccess(s.customer_email ?? s.customer_details?.email, {
           stripeCustomerId: typeof s.customer === "string" ? s.customer : null,
+          recurring, periodEnd,
         });
       }
       break;
@@ -87,8 +111,11 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
     case "invoice.paid":
     case "invoice.payment_succeeded": {
       const inv = event.data.object as any;
+      // Fatura de subscrição → renovação recorrente; estende até ao fim do período.
+      const periodEnd = await periodEndOf(typeof inv.subscription === "string" ? inv.subscription : null);
       await grantAccess(inv.customer_email, {
         stripeCustomerId: typeof inv.customer === "string" ? inv.customer : null,
+        recurring: true, periodEnd,
       });
       break;
     }
@@ -101,7 +128,7 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
       } catch {
         /* ignore */
       }
-      await revokeAccess(email);
+      await endSubscription(email);
       break;
     }
     default:

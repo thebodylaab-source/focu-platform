@@ -5,6 +5,7 @@ import * as schema from "../database/schema";
 import { user as userTable } from "../database/auth-schema";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
+import { isAccessValid, extendOneTime } from "../lib/access";
 
 let _stripe: Stripe | null = null;
 function getStripe(): Stripe | null {
@@ -16,17 +17,21 @@ function getStripe(): Stripe | null {
 export const membershipRoute = new Hono()
   .get("/me", requireAuth, async (c) => {
     const user = c.get("user")!;
-    const [membership] = await db.select().from(schema.memberships).where(eq(schema.memberships.userId, user.id));
-    // Auto-create membership on first check
+    // Estado de acesso pago (fonte de verdade): plano e data de expiração.
+    const [paid] = await db.select().from(schema.paidCustomers)
+      .where(eq(schema.paidCustomers.email, user.email.trim().toLowerCase()));
+    const active = user.role === "admin" || isAccessValid(paid?.expiresAt) && (!!paid || user.role === "member");
+
+    let [membership] = await db.select().from(schema.memberships).where(eq(schema.memberships.userId, user.id));
     if (!membership) {
-      const [created] = await db.insert(schema.memberships).values({
-        userId: user.id,
-        status: "active",
-        plan: "mensal",
-      }).returning();
-      return c.json({ membership: created }, 200);
+      [membership] = await db.insert(schema.memberships).values({ userId: user.id, status: "active", plan: "mensal" }).returning();
     }
-    return c.json({ membership }, 200);
+    return c.json({
+      membership,
+      plan: paid?.plan ?? null,
+      expiresAt: paid?.expiresAt ?? null,
+      active,
+    }, 200);
   })
   // Verificação self-service: se o webhook falhou, o utilizador pendente pode
   // pedir uma verificação direta ao Stripe pelo email da conta.
@@ -53,8 +58,9 @@ export const membershipRoute = new Hono()
           limit: 1,
         });
         if (charges.data.length > 0) {
+          // Fallback: concede 1 mês (o webhook, quando chegar, ajusta o prazo real).
           await db.insert(schema.paidCustomers)
-            .values({ email, paidAt: new Date() })
+            .values({ email, paidAt: new Date(), plan: "mensal-avulso", expiresAt: extendOneTime(new Date(), null) })
             .onConflictDoNothing();
           return activate();
         }
