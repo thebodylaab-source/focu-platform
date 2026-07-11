@@ -28,8 +28,11 @@ const apiApp = new Hono()
   .on(["GET", "POST"], "/auth/*", (c) => auth.handler(c.req.raw))
   .use("*", authMiddleware)
   .get("/health", (c) => c.json({ status: "ok" }, 200))
-  // Config pública para o frontend (ex: mostrar ou não o botão do Google).
-  .get("/config", (c) => c.json({ googleAuth: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) }, 200))
+  // Config pública para o frontend (Google, link de pagamento da mensalidade).
+  .get("/config", (c) => c.json({
+    googleAuth: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    paymentLink: process.env.STRIPE_PAYMENT_LINK ?? "https://buy.stripe.com/14AfZj0jY7mZ5HB4dMfjG00",
+  }, 200))
   .route("/videos", videosRoute)
   .route("/documents", documentsRoute)
   .route("/nutrition", nutritionRoute)

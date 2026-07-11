@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { authClient, clearToken } from "../lib/auth";
-import { Home, Play, FileText, Apple, LogOut, Menu, X, ChevronRight, Moon, Shield } from "lucide-react";
+import { Home, Play, FileText, Apple, LogOut, Menu, X, ChevronRight, Moon, Shield, CreditCard } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
@@ -67,7 +67,13 @@ export function Sidebar() {
               <p className="text-xs truncate" style={{ color: "var(--gray)" }}>{session?.user?.email}</p>
             </div>
           </div>
-          <button onClick={handleSignOut} className="mt-3 flex items-center gap-2 text-xs font-medium cursor-pointer transition-opacity hover:opacity-70 w-full" style={{ color: "var(--gray)" }}>
+          <Link to="/mensalidade" onClick={() => setMobileOpen(false)}>
+            <div className="mt-3 flex items-center gap-2 text-xs font-bold cursor-pointer transition-opacity hover:opacity-80 px-3 py-2 rounded-lg" style={{ background: "var(--orange)", color: "white" }}>
+              <CreditCard size={14} />
+              <span>Renovar mensalidade</span>
+            </div>
+          </Link>
+          <button onClick={handleSignOut} className="mt-2 flex items-center gap-2 text-xs font-medium cursor-pointer transition-opacity hover:opacity-70 w-full" style={{ color: "var(--gray)" }}>
             <LogOut size={14} />
             <span>Sair</span>
           </button>
