@@ -13,6 +13,7 @@ import LojaPage from "./pages/loja";
 import PrivacidadePage from "./pages/privacidade";
 import ReporPasswordPage from "./pages/repor-password";
 import CicloPage from "./pages/ciclo";
+import MensalidadePage from "./pages/mensalidade";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,11 @@ export default function App() {
         <Route path="/ciclo">
           <ProtectedRoute>
             <AppLayout><CicloPage /></AppLayout>
+          </ProtectedRoute>
+        </Route>
+        <Route path="/mensalidade">
+          <ProtectedRoute>
+            <AppLayout><MensalidadePage /></AppLayout>
           </ProtectedRoute>
         </Route>
         <Route path="/admin">
