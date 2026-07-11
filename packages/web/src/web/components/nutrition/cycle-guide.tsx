@@ -37,6 +37,9 @@ export default function CycleGuide() {
         totalCheckins: number;
         lowestEnergyPhase: PhaseId | null;
         topSymptoms: { id: string; count: number }[];
+        emotionalHungerPhase: { phase: PhaseId; rate: number; occurrences: number } | null;
+        descontroloPhase: { phase: PhaseId; rate: number; occurrences: number } | null;
+        headsUp: { descontroloNow: boolean; emotionalNow: boolean };
       } }>;
     },
   });
@@ -211,6 +214,28 @@ export default function CycleGuide() {
         </div>
       )}
 
+      {/* Aviso preventivo de fome (baseado no teu histórico nesta fase) */}
+      {(() => {
+        const ins = insightsData?.insights;
+        if (!ins?.headsUp) return null;
+        const { descontroloNow, emotionalNow } = ins.headsUp;
+        if (!descontroloNow && !emotionalNow) return null;
+        return (
+          <div className="rounded-2xl p-4 flex gap-3" style={{ background: "#DC262612", border: "1.5px solid #DC262630" }}>
+            <span className="text-lg shrink-0">🌀</span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "#DC2626" }}>Atenção nesta fase</p>
+              <p className="text-xs leading-relaxed" style={{ color: "#555" }}>
+                {descontroloNow
+                  ? "Nos teus registos, é nesta fase que costumas ter mais descontrolo com a comida. "
+                  : "Nos teus registos, é nesta fase que costumas ter mais fome emocional. "}
+                Prepara lanches saudáveis à mão e sê gentil contigo — saber que vem aí já é meio caminho para gerir.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Dica */}
       <div className="rounded-2xl p-4 flex gap-3" style={{ background: "var(--peach)" }}>
         <Lightbulb size={18} className="shrink-0 mt-0.5" style={{ color: "var(--orange)" }} />
@@ -260,11 +285,21 @@ export default function CycleGuide() {
               </p>
             )}
             {ins.topSymptoms.length > 0 && (
-              <p className="text-xs" style={{ color: "var(--gray)" }}>
+              <p className="text-xs mb-2" style={{ color: "var(--gray)" }}>
                 Sintomas mais frequentes: {ins.topSymptoms.map(s => SYMPTOM_LABELS[s.id] ?? s.id).join(", ")}.
               </p>
             )}
-            <p className="text-[10px] mt-2" style={{ color: "var(--gray)" }}>Baseado nos teus {ins.totalCheckins} registos dos últimos 90 dias.</p>
+            {ins.descontroloPhase && (
+              <p className="text-sm mb-1" style={{ color: "var(--black)" }}>
+                O <strong>descontrolo com a comida</strong> acontece mais na <strong style={{ color: PHASES[ins.descontroloPhase.phase].color }}>{PHASES[ins.descontroloPhase.phase].label}</strong> ({Math.round(ins.descontroloPhase.rate * 100)}% dos dias que registaste fome).
+              </p>
+            )}
+            {ins.emotionalHungerPhase && (
+              <p className="text-sm mb-1" style={{ color: "var(--black)" }}>
+                A <strong>fome emocional</strong> aparece mais na <strong style={{ color: PHASES[ins.emotionalHungerPhase.phase].color }}>{PHASES[ins.emotionalHungerPhase.phase].label}</strong>.
+              </p>
+            )}
+            <p className="text-[10px] mt-2" style={{ color: "var(--gray)" }}>Baseado nos teus {ins.totalCheckins} registos dos últimos 90 dias. Quanto mais registares, mais fiável fica.</p>
           </div>
         );
       })()}

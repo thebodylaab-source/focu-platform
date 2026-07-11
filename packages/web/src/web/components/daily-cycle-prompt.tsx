@@ -8,7 +8,7 @@ import { computeCycle } from "../lib/cycle";
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
 
 type CycleRow = { lastPeriodStart: string; cycleLength: number; periodLength: number } | null;
-type Checkin = { feeling: string; symptoms?: string } | null;
+type Checkin = { feeling: string; symptoms?: string; hungerEmotional?: string | null; hungerControl?: string | null } | null;
 
 const FEELINGS = [
   { id: "otima", emoji: "🔥", label: "Cheia de energia" },
@@ -59,6 +59,14 @@ export function DailyCyclePrompt() {
   const saveSymptoms = useMutation({
     mutationFn: async (symptoms: string[]) => {
       const res = await fetch("/api/cycle/checkin", { method: "POST", headers: authHeaders(), body: JSON.stringify({ symptoms }) });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle-checkin"] }),
+  });
+
+  const saveHunger = useMutation({
+    mutationFn: async (patch: { hungerEmotional?: string; hungerControl?: string }) => {
+      const res = await fetch("/api/cycle/checkin", { method: "POST", headers: authHeaders(), body: JSON.stringify(patch) });
       return res.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle-checkin"] }),
@@ -165,6 +173,54 @@ export function DailyCyclePrompt() {
             </div>
           );
         })()}
+
+        {/* Fome do dia — dois eixos, para cruzar com a fase ao longo do tempo */}
+        {done && !correcting && (
+          <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${p.color}20` }}>
+            <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--gray)" }}>A tua fome hoje? <span style={{ opacity: 0.6 }}>(opcional)</span></p>
+            <div className="space-y-2">
+              <HungerRow
+                label="Foi emocional?"
+                value={done.hungerEmotional ?? null}
+                options={[{ id: "nao", emoji: "🍽️", label: "Não, fome real" }, { id: "sim", emoji: "💭", label: "Sim, emocional" }]}
+                color={p.color}
+                disabled={saveHunger.isPending}
+                onPick={(v) => saveHunger.mutate({ hungerEmotional: v })}
+              />
+              <HungerRow
+                label="Houve descontrolo?"
+                value={done.hungerControl ?? null}
+                options={[{ id: "controlo", emoji: "😌", label: "Sob controlo" }, { id: "descontrolo", emoji: "🌀", label: "Descontrolo" }]}
+                color={p.color}
+                disabled={saveHunger.isPending}
+                onPick={(v) => saveHunger.mutate({ hungerControl: v })}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HungerRow({ label, value, options, color, disabled, onPick }: {
+  label: string; value: string | null; color: string; disabled: boolean;
+  options: { id: string; emoji: string; label: string }[]; onPick: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-[11px]" style={{ color: "var(--gray)", minWidth: 96 }}>{label}</span>
+      <div className="flex gap-1.5">
+        {options.map(o => {
+          const on = value === o.id;
+          return (
+            <button key={o.id} onClick={() => onPick(o.id)} disabled={disabled}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all disabled:opacity-50"
+              style={on ? { background: color, color: "white" } : { background: "var(--white)", color: "var(--gray)" }}>
+              <span>{o.emoji}</span> {o.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

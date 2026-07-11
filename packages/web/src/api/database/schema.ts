@@ -145,6 +145,9 @@ export const cycleCheckins = sqliteTable("cycle_checkins", {
   feeling: text("feeling").notNull(), // otima | bem | media | sem-energia
   // Sintomas do dia (JSON array): colicas | inchaco | humor | sono | desejos
   symptoms: text("symptoms").notNull().default("[]"),
+  // Fome do dia — dois eixos, para cruzar com a fase do ciclo ao longo do tempo:
+  hungerEmotional: text("hunger_emotional"), // sim | nao | null (não respondeu)
+  hungerControl: text("hunger_control"),     // descontrolo | controlo | null
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 

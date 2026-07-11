@@ -63,7 +63,9 @@ export const cycleRoute = new Hono()
     const symptoms = Array.isArray(body.symptoms)
       ? body.symptoms.filter((s: any) => allowedSymptoms.includes(s))
       : undefined;
-    if (feeling === undefined && symptoms === undefined) {
+    const hungerEmotional = ["sim", "nao"].includes(body.hungerEmotional) ? body.hungerEmotional : undefined;
+    const hungerControl = ["descontrolo", "controlo"].includes(body.hungerControl) ? body.hungerControl : undefined;
+    if (feeling === undefined && symptoms === undefined && hungerEmotional === undefined && hungerControl === undefined) {
       return c.json({ message: "Nada para registar." }, 400);
     }
 
@@ -73,14 +75,21 @@ export const cycleRoute = new Hono()
       const set: any = {};
       if (feeling !== undefined) set.feeling = feeling;
       if (symptoms !== undefined) set.symptoms = JSON.stringify(symptoms);
+      if (hungerEmotional !== undefined) set.hungerEmotional = hungerEmotional;
+      if (hungerControl !== undefined) set.hungerControl = hungerControl;
       const [row] = await db.update(schema.cycleCheckins).set(set)
         .where(eq(schema.cycleCheckins.id, existing.id)).returning();
       return c.json({ checkin: row }, 200);
     }
-    // Novo registo precisa de um estado (os sintomas só aparecem depois no UI).
+    // Novo registo precisa de um estado (o resto só aparece depois no UI).
     if (feeling === undefined) return c.json({ message: "Escolhe primeiro como te sentes." }, 400);
     const [row] = await db.insert(schema.cycleCheckins)
-      .values({ userId: user.id, checkinDate: today(), feeling, symptoms: JSON.stringify(symptoms ?? []) }).returning();
+      .values({
+        userId: user.id, checkinDate: today(), feeling,
+        symptoms: JSON.stringify(symptoms ?? []),
+        hungerEmotional: hungerEmotional ?? null,
+        hungerControl: hungerControl ?? null,
+      }).returning();
     return c.json({ checkin: row }, 201);
   })
   // Padrões: agrega os check-ins por fase para mostrar tendências à aluna.
@@ -95,11 +104,10 @@ export const cycleRoute = new Hono()
       .where(and(eq(schema.cycleCheckins.userId, user.id), gte(schema.cycleCheckins.checkinDate, since.toISOString().split("T")[0])));
 
     const energyScore: Record<string, number> = { otima: 4, bem: 3, media: 2, "sem-energia": 1 };
-    const byPhase: Record<PhaseId, { count: number; energySum: number; symptoms: Record<string, number> }> = {
-      menstrual: { count: 0, energySum: 0, symptoms: {} },
-      folicular: { count: 0, energySum: 0, symptoms: {} },
-      ovulacao: { count: 0, energySum: 0, symptoms: {} },
-      lutea: { count: 0, energySum: 0, symptoms: {} },
+    type PhaseAgg = { count: number; energySum: number; symptoms: Record<string, number>; hungerAnswered: number; emotional: number; descontrolo: number };
+    const mk = (): PhaseAgg => ({ count: 0, energySum: 0, symptoms: {}, hungerAnswered: 0, emotional: 0, descontrolo: 0 });
+    const byPhase: Record<PhaseId, PhaseAgg> = {
+      menstrual: mk(), folicular: mk(), ovulacao: mk(), lutea: mk(),
     };
     const symptomTotals: Record<string, number> = {};
 
@@ -114,6 +122,10 @@ export const cycleRoute = new Hono()
         b.symptoms[s] = (b.symptoms[s] ?? 0) + 1;
         symptomTotals[s] = (symptomTotals[s] ?? 0) + 1;
       }
+      // Fome: conta respostas e ocorrências de fome emocional / descontrolo.
+      if (r.hungerEmotional || r.hungerControl) b.hungerAnswered++;
+      if (r.hungerEmotional === "sim") b.emotional++;
+      if (r.hungerControl === "descontrolo") b.descontrolo++;
     }
 
     // Fase com menor energia média (só fases com registos)
@@ -127,7 +139,32 @@ export const cycleRoute = new Hono()
       }
     });
 
+    // Fase onde a fome emocional / o descontrolo acontecem mais (por taxa),
+    // com um mínimo de dados para não tirar conclusões precipitadas.
+    const topRatePhase = (pick: (b: PhaseAgg) => number): { phase: PhaseId; rate: number; occurrences: number } | null => {
+      let best: { phase: PhaseId; rate: number; occurrences: number } | null = null;
+      (Object.keys(byPhase) as PhaseId[]).forEach((ph) => {
+        const b = byPhase[ph];
+        const occ = pick(b);
+        if (b.hungerAnswered >= 3 && occ >= 2) {
+          const rate = occ / b.hungerAnswered;
+          if (!best || rate > best.rate) best = { phase: ph, rate, occurrences: occ };
+        }
+      });
+      return best;
+    };
+    const emotionalHungerPhase = topRatePhase((b) => b.emotional);
+    const descontroloPhase = topRatePhase((b) => b.descontrolo);
+
     const topSymptoms = Object.entries(symptomTotals).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, count]) => ({ id, count }));
+
+    // Antecipação para a fase de HOJE: se costuma haver descontrolo/fome
+    // emocional na fase atual, avisamos com antecedência.
+    const currentPhase = computePhase(settings).phaseId;
+    const headsUp = {
+      descontroloNow: !!descontroloPhase && (descontroloPhase as any).phase === currentPhase,
+      emotionalNow: !!emotionalHungerPhase && (emotionalHungerPhase as any).phase === currentPhase,
+    };
 
     return c.json({
       insights: {
@@ -135,6 +172,9 @@ export const cycleRoute = new Hono()
         byPhase,
         lowestEnergyPhase,
         topSymptoms,
+        emotionalHungerPhase,
+        descontroloPhase,
+        headsUp,
       },
     }, 200);
   })
