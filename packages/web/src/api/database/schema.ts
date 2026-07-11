@@ -148,6 +148,9 @@ export const cycleCheckins = sqliteTable("cycle_checkins", {
   // Fome do dia — dois eixos, para cruzar com a fase do ciclo ao longo do tempo:
   hungerEmotional: text("hunger_emotional"), // sim | nao | null (não respondeu)
   hungerControl: text("hunger_control"),     // descontrolo | controlo | null
+  // Contexto/fatores do dia (JSON array): trabalho | escola | ansiedade |
+  // sono-mau | treino | relax — cruza stress da vida com fome e ciclo.
+  context: text("context").notNull().default("[]"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 

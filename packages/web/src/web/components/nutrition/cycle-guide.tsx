@@ -11,6 +11,10 @@ const todayStr = () => new Date().toISOString().split("T")[0];
 const SYMPTOM_LABELS: Record<string, string> = {
   colicas: "🩸 cólicas", inchaco: "🎈 inchaço", humor: "😔 humor em baixo", sono: "😴 sono fraco", desejos: "🍫 desejos",
 };
+const CONTEXT_LABELS: Record<string, string> = {
+  trabalho: "💼 stress do trabalho", escola: "📚 stress da escola", ansiedade: "😰 ansiedade",
+  "sono-mau": "🌙 dormir mal", treino: "🏃 treino", relax: "🧘 dias calmos",
+};
 
 type CycleRow = { lastPeriodStart: string; cycleLength: number; periodLength: number } | null;
 
@@ -37,6 +41,7 @@ export default function CycleGuide() {
         totalCheckins: number;
         lowestEnergyPhase: PhaseId | null;
         topSymptoms: { id: string; count: number }[];
+        topContexts: { id: string; count: number }[];
         emotionalHungerPhase: { phase: PhaseId; rate: number; occurrences: number } | null;
         descontroloPhase: { phase: PhaseId; rate: number; occurrences: number } | null;
         headsUp: { descontroloNow: boolean; emotionalNow: boolean };
@@ -297,6 +302,11 @@ export default function CycleGuide() {
             {ins.emotionalHungerPhase && (
               <p className="text-sm mb-1" style={{ color: "var(--black)" }}>
                 A <strong>fome emocional</strong> aparece mais na <strong style={{ color: PHASES[ins.emotionalHungerPhase.phase].color }}>{PHASES[ins.emotionalHungerPhase.phase].label}</strong>.
+              </p>
+            )}
+            {ins.topContexts && ins.topContexts.length > 0 && (
+              <p className="text-xs mt-1" style={{ color: "var(--gray)" }}>
+                O que mais marca os teus dias: {ins.topContexts.map(s => CONTEXT_LABELS[s.id] ?? s.id).join(", ")}.
               </p>
             )}
             <p className="text-[10px] mt-2" style={{ color: "var(--gray)" }}>Baseado nos teus {ins.totalCheckins} registos dos últimos 90 dias. Quanto mais registares, mais fiável fica.</p>

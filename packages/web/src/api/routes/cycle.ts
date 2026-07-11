@@ -58,14 +58,18 @@ export const cycleRoute = new Hono()
     const body = await c.req.json();
     const allowedFeelings = ["otima", "bem", "media", "sem-energia"];
     const allowedSymptoms = ["colicas", "inchaco", "humor", "sono", "desejos"];
+    const allowedContext = ["trabalho", "escola", "ansiedade", "sono-mau", "treino", "relax"];
 
     const feeling = allowedFeelings.includes(body.feeling) ? body.feeling : undefined;
     const symptoms = Array.isArray(body.symptoms)
       ? body.symptoms.filter((s: any) => allowedSymptoms.includes(s))
       : undefined;
+    const context = Array.isArray(body.context)
+      ? body.context.filter((s: any) => allowedContext.includes(s))
+      : undefined;
     const hungerEmotional = ["sim", "nao"].includes(body.hungerEmotional) ? body.hungerEmotional : undefined;
     const hungerControl = ["descontrolo", "controlo"].includes(body.hungerControl) ? body.hungerControl : undefined;
-    if (feeling === undefined && symptoms === undefined && hungerEmotional === undefined && hungerControl === undefined) {
+    if (feeling === undefined && symptoms === undefined && context === undefined && hungerEmotional === undefined && hungerControl === undefined) {
       return c.json({ message: "Nada para registar." }, 400);
     }
 
@@ -75,6 +79,7 @@ export const cycleRoute = new Hono()
       const set: any = {};
       if (feeling !== undefined) set.feeling = feeling;
       if (symptoms !== undefined) set.symptoms = JSON.stringify(symptoms);
+      if (context !== undefined) set.context = JSON.stringify(context);
       if (hungerEmotional !== undefined) set.hungerEmotional = hungerEmotional;
       if (hungerControl !== undefined) set.hungerControl = hungerControl;
       const [row] = await db.update(schema.cycleCheckins).set(set)
@@ -87,6 +92,7 @@ export const cycleRoute = new Hono()
       .values({
         userId: user.id, checkinDate: today(), feeling,
         symptoms: JSON.stringify(symptoms ?? []),
+        context: JSON.stringify(context ?? []),
         hungerEmotional: hungerEmotional ?? null,
         hungerControl: hungerControl ?? null,
       }).returning();
@@ -110,6 +116,7 @@ export const cycleRoute = new Hono()
       menstrual: mk(), folicular: mk(), ovulacao: mk(), lutea: mk(),
     };
     const symptomTotals: Record<string, number> = {};
+    const contextTotals: Record<string, number> = {};
 
     for (const r of rows) {
       const ph = computePhase(settings, r.checkinDate).phaseId;
@@ -122,6 +129,9 @@ export const cycleRoute = new Hono()
         b.symptoms[s] = (b.symptoms[s] ?? 0) + 1;
         symptomTotals[s] = (symptomTotals[s] ?? 0) + 1;
       }
+      let ctx: string[] = [];
+      try { ctx = JSON.parse((r as any).context || "[]"); } catch { /* ignore */ }
+      for (const s of ctx) contextTotals[s] = (contextTotals[s] ?? 0) + 1;
       // Fome: conta respostas e ocorrências de fome emocional / descontrolo.
       if (r.hungerEmotional || r.hungerControl) b.hungerAnswered++;
       if (r.hungerEmotional === "sim") b.emotional++;
@@ -157,6 +167,7 @@ export const cycleRoute = new Hono()
     const descontroloPhase = topRatePhase((b) => b.descontrolo);
 
     const topSymptoms = Object.entries(symptomTotals).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, count]) => ({ id, count }));
+    const topContexts = Object.entries(contextTotals).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, count]) => ({ id, count }));
 
     // Antecipação para a fase de HOJE: se costuma haver descontrolo/fome
     // emocional na fase atual, avisamos com antecedência.
@@ -172,6 +183,7 @@ export const cycleRoute = new Hono()
         byPhase,
         lowestEnergyPhase,
         topSymptoms,
+        topContexts,
         emotionalHungerPhase,
         descontroloPhase,
         headsUp,
