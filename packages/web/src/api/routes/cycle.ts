@@ -57,7 +57,7 @@ export const cycleRoute = new Hono()
     const user = c.get("user")!;
     const body = await c.req.json();
     const allowedFeelings = ["otima", "bem", "media", "sem-energia"];
-    const allowedSymptoms = ["colicas", "inchaco", "humor", "sono", "desejos"];
+    const allowedSymptoms = ["colicas", "inchaco", "humor", "sono", "desejos", "humor-bom", "motivada", "energia-boa", "pele-boa", "libido", "sono-bom"];
     const allowedContext = ["trabalho", "escola", "ansiedade", "sono-mau", "treino", "relax"];
 
     const feeling = allowedFeelings.includes(body.feeling) ? body.feeling : undefined;
