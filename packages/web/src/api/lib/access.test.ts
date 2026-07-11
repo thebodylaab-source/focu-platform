@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { extendOneTime, isAccessValid, MONTH_MS } from "./access";
+import { extendOneTime, isAccessValid, MONTH_MS } from "./access-core";
 
 describe("extendOneTime — pagamento avulso estende +30 dias", () => {
   const now = new Date("2025-01-10T12:00:00Z");
