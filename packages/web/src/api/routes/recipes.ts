@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
-import { eq, and, sql, isNull, or } from "drizzle-orm";
+import { eq, and, sql, isNull, isNotNull, ne, or } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -66,6 +66,13 @@ export const recipesRoute = new Hono()
       ? await db.select().from(schema.recipes)
       : await db.select().from(schema.recipes)
           .where(or(isNull(schema.recipes.ownerId), eq(schema.recipes.ownerId, user.id)));
+    return c.json({ recipes: rows }, 200);
+  })
+  // Receitas feitas por OUTRAS alunas (comunidade) — para partilha de ideias.
+  .get("/community", requireAuth, async (c) => {
+    const user = c.get("user")!;
+    const rows = await db.select().from(schema.recipes)
+      .where(and(isNotNull(schema.recipes.ownerId), ne(schema.recipes.ownerId, user.id)));
     return c.json({ recipes: rows }, 200);
   })
   .post("/", requireAuth, async (c) => {

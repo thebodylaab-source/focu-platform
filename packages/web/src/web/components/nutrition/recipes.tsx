@@ -125,7 +125,11 @@ function RecipeCard({ recipe, fav = false, onToggleFav, isOwn = false, onDelete 
       <div className="p-5">
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
-            {isOwn && <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-1" style={{ background: "var(--peach)", color: "var(--orange)" }}>A minha receita</span>}
+            {isOwn
+              ? <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-1" style={{ background: "var(--peach)", color: "var(--orange)" }}>A minha receita</span>
+              : recipe.ownerId
+                ? <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-1" style={{ background: "#7C3AED18", color: "#7C3AED" }}>👭 Por outra aluna</span>
+                : null}
             <h3 className="font-black text-base leading-tight" style={{ color: "var(--black)" }}>{recipe.title}</h3>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -307,6 +311,17 @@ export default function Recipes() {
   const { data: session } = authClient.useSession();
   const userId = (session?.user as any)?.id as string | undefined;
   const [onlyMine, setOnlyMine] = useState(false);
+
+  // Aba "Comunidade": receitas feitas por outras alunas.
+  const [community, setCommunity] = useState(false);
+  const { data: communityData } = useQuery({
+    queryKey: ["recipes-community"],
+    enabled: community,
+    queryFn: async () => {
+      const res = await fetch("/api/recipes/community", { headers: authHeaders() });
+      return res.json() as Promise<{ recipes: any[] }>;
+    },
+  });
   const deleteRecipe = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(`/api/recipes/${id}`, { method: "DELETE", headers: authHeaders() });
@@ -328,12 +343,14 @@ export default function Recipes() {
     setActiveFilters(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   };
 
-  let filtered = allRecipes.filter(r => {
+  // Comunidade → receitas de outras alunas; caso contrário → programa + minhas.
+  const baseRecipes = community ? (communityData?.recipes ?? []) : allRecipes;
+  let filtered = baseRecipes.filter(r => {
     const tags = typeof r.tags === "string" ? JSON.parse(r.tags) : (r.tags ?? []);
     const matchSearch = !search || r.title.toLowerCase().includes(search.toLowerCase());
     const matchFilters = activeFilters.length === 0 || activeFilters.every(f => tags.includes(f));
     const matchFav = !onlyFavs || favIds.has(r.id);
-    const matchMine = !onlyMine || (!!userId && r.ownerId === userId);
+    const matchMine = community || !onlyMine || (!!userId && r.ownerId === userId);
     return matchSearch && matchFilters && matchFav && matchMine;
   });
 
@@ -526,10 +543,15 @@ export default function Recipes() {
           style={onlyFavs ? { background: "#DC2626", color: "white" } : { background: "var(--white)", color: "var(--gray)", border: "1px solid var(--gray-lt)" }}>
           <Heart size={12} fill={onlyFavs ? "white" : "none"} /> Favoritos
         </button>
-        <button onClick={() => setOnlyMine(!onlyMine)}
+        <button onClick={() => { setOnlyMine(!onlyMine); setCommunity(false); }}
           className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all"
-          style={onlyMine ? { background: "var(--orange)", color: "white" } : { background: "var(--white)", color: "var(--gray)", border: "1px solid var(--gray-lt)" }}>
+          style={onlyMine && !community ? { background: "var(--orange)", color: "white" } : { background: "var(--white)", color: "var(--gray)", border: "1px solid var(--gray-lt)" }}>
           🍳 Minhas
+        </button>
+        <button onClick={() => { setCommunity(!community); setOnlyMine(false); setOnlyFavs(false); }}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all"
+          style={community ? { background: "#7C3AED", color: "white" } : { background: "var(--white)", color: "var(--gray)", border: "1px solid var(--gray-lt)" }}>
+          👭 Comunidade
         </button>
         {FILTERS.map(f => (
           <button key={f.id} onClick={() => toggleFilter(f.id)}
@@ -586,6 +608,12 @@ export default function Recipes() {
             </div>
           );
         })()
+      ) : community && filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-4xl mb-2">👭</p>
+          <p className="font-semibold" style={{ color: "var(--gray)" }}>Ainda não há receitas da comunidade</p>
+          <p className="text-sm mt-1" style={{ color: "var(--gray)" }}>Quando outras alunas criarem receitas, aparecem aqui para te inspirares.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {filtered.map((r: any) => <RecipeCard key={r.id} recipe={r} {...cardProps(r)} />)}
