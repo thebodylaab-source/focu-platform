@@ -1,14 +1,14 @@
 import { Link, useLocation } from "wouter";
 import { authClient, clearToken } from "../lib/auth";
-import { Home, Play, FileText, Apple, LogOut, Menu, X, ChevronRight, Moon, Shield, CreditCard } from "lucide-react";
+import { Home, Play, FileText, Apple, LogOut, Menu, X, ChevronRight, Shield, CreditCard } from "lucide-react";
 import { useState } from "react";
 
+// O Ciclo vive agora dentro da Nutrição (separador) — menos ícones na barra móvel.
 const navItems = [
   { path: "/", icon: Home, label: "Início" },
   { path: "/videos", icon: Play, label: "Vídeos" },
   { path: "/conteudos", icon: FileText, label: "Conteúdos" },
   { path: "/nutricao", icon: Apple, label: "Nutrição" },
-  { path: "/ciclo", icon: Moon, label: "Ciclo" },
 ];
 
 const adminNavItem = { path: "/admin", icon: Shield, label: "Admin" };

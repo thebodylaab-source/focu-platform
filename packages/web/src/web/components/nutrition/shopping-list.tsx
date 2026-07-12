@@ -262,7 +262,7 @@ export default function ShoppingList() {
                     <p className="text-sm font-medium" style={{ color: "var(--black)" }}>{item.name}</p>
                     {item.quantity && <p className="text-xs" style={{ color: "var(--gray)" }}>{item.quantity}</p>}
                   </div>
-                  <button onClick={() => deleteMutation.mutate(item.id)} className="p-1.5 rounded-lg cursor-pointer shrink-0" style={{ color: "#EF4444" }}>
+                  <button onClick={() => { if (confirm(`Remover "${item.name}" da lista?`)) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-lg cursor-pointer shrink-0" style={{ color: "#EF4444" }}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -286,7 +286,7 @@ export default function ShoppingList() {
                     <Check size={12} color="white" />
                   </button>
                   <p className="flex-1 text-sm line-through" style={{ color: "var(--gray)" }}>{item.name}</p>
-                  <button onClick={() => deleteMutation.mutate(item.id)} className="p-1.5 rounded-lg cursor-pointer" style={{ color: "#EF4444" }}>
+                  <button onClick={() => { if (confirm(`Remover "${item.name}" da lista?`)) deleteMutation.mutate(item.id); }} className="p-1.5 rounded-lg cursor-pointer" style={{ color: "#EF4444" }}>
                     <Trash2 size={14} />
                   </button>
                 </div>

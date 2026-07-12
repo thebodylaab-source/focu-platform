@@ -4,10 +4,12 @@ import FoodTracker from "../components/nutrition/food-tracker";
 import Recipes from "../components/nutrition/recipes";
 import ShoppingList from "../components/nutrition/shopping-list";
 import CalorieCalculator from "../components/nutrition/calorie-calculator";
-import { Flame, ListChecks, ChefHat, ShoppingCart, Calculator } from "lucide-react";
+import CycleGuide from "../components/nutrition/cycle-guide";
+import { Flame, ListChecks, ChefHat, ShoppingCart, Calculator, Moon } from "lucide-react";
 import { useLocation } from "wouter";
 
 const TABS = [
+  { id: "ciclo", label: "O Meu Ciclo", icon: Moon },
   { id: "calorias", label: "Contador", icon: Flame },
   { id: "rastreador", label: "Rastreador", icon: ListChecks },
   { id: "receitas", label: "Receitas", icon: ChefHat },
@@ -17,7 +19,9 @@ const TABS = [
 
 export default function NutricaoPage() {
   const [location] = useLocation();
-  const defaultTab = location.includes("receitas")
+  const defaultTab = location.includes("ciclo")
+    ? "ciclo"
+    : location.includes("receitas")
     ? "receitas"
     : location.includes("compras")
       ? "compras"
@@ -48,6 +52,7 @@ export default function NutricaoPage() {
 
       {/* Tab content */}
       <div className="fade-up">
+        {tab === "ciclo" && <CycleGuide />}
         {tab === "calculador" && <CalorieCalculator />}
         {tab === "calorias" && <CalorieCounter />}
         {tab === "rastreador" && <FoodTracker />}

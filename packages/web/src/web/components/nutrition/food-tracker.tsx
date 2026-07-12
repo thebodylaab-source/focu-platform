@@ -222,7 +222,7 @@ export default function FoodTracker() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold" style={{ color: "var(--orange)" }}>{Math.round(l.calories * l.quantity)} kcal</span>
-                      <button onClick={() => deleteMutation.mutate(l.id)} className="p-1.5 rounded-lg cursor-pointer" style={{ color: "#EF4444" }}>
+                      <button onClick={() => { if (confirm(`Apagar "${l.foodName}" do registo?`)) deleteMutation.mutate(l.id); }} className="p-1.5 rounded-lg cursor-pointer" style={{ color: "#EF4444" }}>
                         <Trash2 size={14} />
                       </button>
                     </div>

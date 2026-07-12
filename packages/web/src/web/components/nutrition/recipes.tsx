@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Clock, Users, Flame, Plus, X, Search, ChevronDown, ChevronUp, Sparkles, Loader2, Heart } from "lucide-react";
-import { getToken } from "../../lib/auth";
+import { getToken, authClient } from "../../lib/auth";
 
 const FILTERS = [
   { id: "sem-gluten", label: "Sem Glúten", emoji: "🌾" },
@@ -89,7 +89,7 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 };
 
-function RecipeCard({ recipe, fav = false, onToggleFav }: { recipe: any; fav?: boolean; onToggleFav?: () => void }) {
+function RecipeCard({ recipe, fav = false, onToggleFav, isOwn = false, onDelete }: { recipe: any; fav?: boolean; onToggleFav?: () => void; isOwn?: boolean; onDelete?: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const baseServings = recipe.servings && recipe.servings > 0 ? recipe.servings : 1;
   const [portions, setPortions] = useState(baseServings);
@@ -124,12 +124,20 @@ function RecipeCard({ recipe, fav = false, onToggleFav }: { recipe: any; fav?: b
       <div className="h-3" style={{ background: "var(--orange)" }} />
       <div className="p-5">
         <div className="flex items-start justify-between gap-2 mb-3">
-          <h3 className="font-black text-base leading-tight" style={{ color: "var(--black)" }}>{recipe.title}</h3>
+          <div className="min-w-0">
+            {isOwn && <span className="inline-block text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-1" style={{ background: "var(--peach)", color: "var(--orange)" }}>A minha receita</span>}
+            <h3 className="font-black text-base leading-tight" style={{ color: "var(--black)" }}>{recipe.title}</h3>
+          </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {onToggleFav && (
               <button onClick={onToggleFav} className="cursor-pointer transition-transform hover:scale-110"
                 style={{ color: fav ? "#DC2626" : "var(--gray)" }}>
                 <Heart size={18} fill={fav ? "#DC2626" : "none"} />
+              </button>
+            )}
+            {isOwn && onDelete && (
+              <button onClick={onDelete} className="cursor-pointer transition-transform hover:scale-110" title="Apagar a minha receita" style={{ color: "var(--gray)" }}>
+                <X size={18} />
               </button>
             )}
             <span className="text-2xl">{tags.includes("vegan") ? "🌱" : tags.includes("alta-proteina") ? "💪" : "🍽️"}</span>
@@ -294,7 +302,27 @@ export default function Recipes() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["favorites", "recipe"] }),
   });
-  const cardProps = (r: any) => ({ fav: favIds.has(r.id), onToggleFav: () => toggleFav.mutate(r.id) });
+
+  // #1: dono da receita — para o filtro "Minhas" e o botão de apagar.
+  const { data: session } = authClient.useSession();
+  const userId = (session?.user as any)?.id as string | undefined;
+  const [onlyMine, setOnlyMine] = useState(false);
+  const deleteRecipe = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/recipes/${id}`, { method: "DELETE", headers: authHeaders() });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["recipes"] }),
+  });
+  const cardProps = (r: any) => {
+    const isOwn = !!userId && r.ownerId === userId;
+    return {
+      fav: favIds.has(r.id),
+      onToggleFav: () => toggleFav.mutate(r.id),
+      isOwn,
+      onDelete: isOwn ? () => { if (confirm("Apagar esta receita?")) deleteRecipe.mutate(r.id); } : undefined,
+    };
+  };
 
   const toggleFilter = (id: string) => {
     setActiveFilters(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
@@ -305,7 +333,8 @@ export default function Recipes() {
     const matchSearch = !search || r.title.toLowerCase().includes(search.toLowerCase());
     const matchFilters = activeFilters.length === 0 || activeFilters.every(f => tags.includes(f));
     const matchFav = !onlyFavs || favIds.has(r.id);
-    return matchSearch && matchFilters && matchFav;
+    const matchMine = !onlyMine || (!!userId && r.ownerId === userId);
+    return matchSearch && matchFilters && matchFav && matchMine;
   });
 
   // Pesquisa por ingredientes: conta quantos ingredientes que o utilizador tem
@@ -496,6 +525,11 @@ export default function Recipes() {
           className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all"
           style={onlyFavs ? { background: "#DC2626", color: "white" } : { background: "var(--white)", color: "var(--gray)", border: "1px solid var(--gray-lt)" }}>
           <Heart size={12} fill={onlyFavs ? "white" : "none"} /> Favoritos
+        </button>
+        <button onClick={() => setOnlyMine(!onlyMine)}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all"
+          style={onlyMine ? { background: "var(--orange)", color: "white" } : { background: "var(--white)", color: "var(--gray)", border: "1px solid var(--gray-lt)" }}>
+          🍳 Minhas
         </button>
         {FILTERS.map(f => (
           <button key={f.id} onClick={() => toggleFilter(f.id)}
