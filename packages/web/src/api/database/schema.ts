@@ -84,6 +84,9 @@ export const recipes = sqliteTable("recipes", {
   steps: text("steps").notNull(), // JSON string
   tags: text("tags").notNull().default("[]"), // JSON array: sem-gluten, sem-lactose, vegan, vegetariano, sem-acucar, alta-proteina
   category: text("category").notNull().default("principal"),
+  // Dono da receita: NULL = receita do programa (curada/admin), visível a todas.
+  // Preenchido = receita pessoal dessa aluna, visível só a ela.
+  ownerId: text("owner_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
@@ -162,6 +165,7 @@ export const aiGenerations = sqliteTable("ai_generations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: text("user_id").notNull(),
   genDate: text("gen_date").notNull(), // YYYY-MM-DD
+  count: integer("count").notNull().default(1), // gerações usadas nesse dia
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 }, (t) => ({
   // 1 por (utilizador, dia) — trava o limite mesmo com pedidos simultâneos.

@@ -51,6 +51,7 @@ const SYMPTOMS: { id: string; emoji: string; label: string; positive?: boolean }
 export function DailyCyclePrompt() {
   const qc = useQueryClient();
   const [correcting, setCorrecting] = useState(false);
+  const [showAllSymptoms, setShowAllSymptoms] = useState(false);
   // "Validado" = a aluna carregou em Guardar; colapsa o registo (por dia).
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(doneKey()) === "1"; } catch { return false; }
@@ -106,7 +107,7 @@ export function DailyCyclePrompt() {
   // Sem ciclo configurado → convite
   if (!cycleData?.cycle) {
     return (
-      <Link to="/ciclo">
+      <Link to="/nutricao?tab=ciclo">
         <div className="rounded-2xl p-4 cursor-pointer transition-all hover:shadow-md flex items-center gap-3" style={{ background: "var(--peach)" }}>
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: "var(--white)" }}>
             <Moon size={20} style={{ color: "var(--orange)" }} />
@@ -128,7 +129,7 @@ export function DailyCyclePrompt() {
   return (
     <div className="rounded-2xl p-5" style={{ background: p.color + "12", border: `1.5px solid ${p.color}30` }}>
       {/* Fase de hoje */}
-      <Link to="/ciclo">
+      <Link to="/nutricao?tab=ciclo">
         <div className="flex items-center gap-3 cursor-pointer">
           <span className="text-3xl">{p.emoji}</span>
           <div className="flex-1 min-w-0">
@@ -190,11 +191,15 @@ export function DailyCyclePrompt() {
             const next = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id];
             saveSymptoms.mutate(next);
           };
+          const VISIBLE = 8;
+          // Mostra os primeiros 8 + os que já estão selecionados (para não sumirem).
+          const shown = showAllSymptoms ? SYMPTOMS : SYMPTOMS.filter((s, i) => i < VISIBLE || selected.includes(s.id));
+          const hidden = SYMPTOMS.length - shown.length;
           return (
             <div className="mt-3">
               <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--gray)" }}>Sintomas hoje? <span style={{ opacity: 0.6 }}>(opcional)</span></p>
               <div className="flex flex-wrap gap-1.5">
-                {SYMPTOMS.map(s => {
+                {shown.map(s => {
                   const on = selected.includes(s.id);
                   const activeBg = s.positive ? "#16A34A" : p.color;
                   return (
@@ -205,6 +210,13 @@ export function DailyCyclePrompt() {
                     </button>
                   );
                 })}
+                {(hidden > 0 || showAllSymptoms) && (
+                  <button onClick={() => setShowAllSymptoms(v => !v)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer"
+                    style={{ background: "var(--cream)", color: "var(--gray)" }}>
+                    {showAllSymptoms ? "ver menos" : `+ ver mais (${hidden})`}
+                  </button>
+                )}
               </div>
             </div>
           );

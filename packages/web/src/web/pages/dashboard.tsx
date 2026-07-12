@@ -81,7 +81,17 @@ export default function DashboardPage() {
       <DailyCyclePrompt />
 
       {/* Streak de treino + calendário semanal */}
-      {(() => {
+      {!progressData ? (
+        <div className="rounded-2xl p-5 shadow-sm animate-pulse" style={{ background: "var(--white)" }}>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl" style={{ background: "var(--peach)" }} />
+            <div className="space-y-2">
+              <div className="h-5 w-24 rounded" style={{ background: "var(--peach)" }} />
+              <div className="h-3 w-32 rounded" style={{ background: "var(--cream)" }} />
+            </div>
+          </div>
+        </div>
+      ) : (() => {
         const checkins = new Set(progressData?.checkins ?? []);
         const forgiven = new Set(progressData?.forgivenDays ?? []);
         const restForgivenToday = progressData?.restForgivenToday ?? false;

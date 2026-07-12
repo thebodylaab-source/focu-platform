@@ -1,29 +1,35 @@
 import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
-import { eq, and } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middleware/auth";
+import { eq, and, sql, isNull, or } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
 import Anthropic from "@anthropic-ai/sdk";
 
 // IA ligada diretamente à chave Anthropic (independente de qualquer gateway).
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Controlo de custos: cada aluno gera 1 receita por dia. A reserva é feita
-// ANTES de chamar a IA (com restrição única (userId, genDate) na base, à prova
-// de pedidos simultâneos). Se a geração falhar, a reserva é devolvida para a
-// aluna poder tentar de novo — não perde o dia por um erro da IA.
+// Controlo de custos: cada aluna pode gerar até 3 receitas por dia (dá margem
+// para tentar outra se não gostar, sem custo descontrolado). O contador é
+// incrementado atomicamente ANTES da chamada (à prova de concorrência); se a
+// geração falhar, é decrementado — não se perde a tentativa por um erro da IA.
+const DAILY_LIMIT = 3;
 const today = () => new Date().toISOString().split("T")[0];
 
 async function reserveDailyGeneration(userId: string): Promise<boolean> {
   const [row] = await db.insert(schema.aiGenerations)
-    .values({ userId, genDate: today() })
-    .onConflictDoNothing()
+    .values({ userId, genDate: today(), count: 1 })
+    .onConflictDoUpdate({
+      target: [schema.aiGenerations.userId, schema.aiGenerations.genDate],
+      set: { count: sql`${schema.aiGenerations.count} + 1` },
+    })
     .returning();
-  return !!row; // inseriu → reservado; conflito → já usou hoje
+  if ((row?.count ?? 1) > DAILY_LIMIT) { await rollbackDailyGeneration(userId); return false; }
+  return true;
 }
 
 async function rollbackDailyGeneration(userId: string): Promise<void> {
-  await db.delete(schema.aiGenerations)
+  await db.update(schema.aiGenerations)
+    .set({ count: sql`max(0, ${schema.aiGenerations.count} - 1)` })
     .where(and(eq(schema.aiGenerations.userId, userId), eq(schema.aiGenerations.genDate, today())));
 }
 
@@ -53,10 +59,17 @@ function extractJson(raw: string): any | null {
 
 export const recipesRoute = new Hono()
   .get("/", requireAuth, async (c) => {
-    const rows = await db.select().from(schema.recipes);
+    const user = c.get("user")!;
+    // Cada aluna vê as receitas do programa (owner NULL) + as suas próprias.
+    // Admin vê tudo.
+    const rows = user.role === "admin"
+      ? await db.select().from(schema.recipes)
+      : await db.select().from(schema.recipes)
+          .where(or(isNull(schema.recipes.ownerId), eq(schema.recipes.ownerId, user.id)));
     return c.json({ recipes: rows }, 200);
   })
   .post("/", requireAuth, async (c) => {
+    const user = c.get("user")!;
     const body = await c.req.json();
     if (!body.title || typeof body.title !== "string" || !body.title.trim()) {
       return c.json({ message: "Título obrigatório." }, 400);
@@ -66,8 +79,11 @@ export const recipesRoute = new Hono()
       return c.json({ message: "A receita precisa de pelo menos um ingrediente." }, 400);
     }
     const num = (v: any) => { const n = parseFloat(v); return Number.isFinite(n) && n >= 0 ? n : null; };
+    // Admin cria receitas do programa (owner NULL); aluna cria receitas pessoais.
+    const ownerId = user.role === "admin" ? null : user.id;
     const [recipe] = await db.insert(schema.recipes).values({
       ...body,
+      ownerId,
       calories: num(body.calories),
       protein: num(body.protein),
       carbs: num(body.carbs),
@@ -80,7 +96,7 @@ export const recipesRoute = new Hono()
     const isAdmin = user.role === "admin";
     // Reserva o dia ANTES de qualquer trabalho (à prova de concorrência).
     if (!isAdmin && !(await reserveDailyGeneration(user.id))) {
-      return c.json({ error: "Já geraste a tua receita de hoje. 🍑 Volta amanhã para uma nova!" }, 429);
+      return c.json({ error: "Já usaste as tuas 3 gerações de hoje. 🍑 Volta amanhã para mais!" }, 429);
     }
     try {
       const { prompt } = await c.req.json();
@@ -134,8 +150,15 @@ Usa português de Portugal.`;
       return c.json({ error: e.message || "Erro interno" }, 500);
     }
   })
-  .delete("/:id", requireAdmin, async (c) => {
+  .delete("/:id", requireAuth, async (c) => {
+    const user = c.get("user")!;
     const id = parseInt(c.req.param("id"));
+    const [recipe] = await db.select().from(schema.recipes).where(eq(schema.recipes.id, id));
+    if (!recipe) return c.json({ ok: true }, 200);
+    // Admin apaga qualquer; aluna só as receitas dela (não as do programa).
+    if (user.role !== "admin" && recipe.ownerId !== user.id) {
+      return c.json({ message: "Só podes apagar as tuas receitas." }, 403);
+    }
     await db.delete(schema.recipes).where(eq(schema.recipes.id, id));
     return c.json({ ok: true }, 200);
   });
