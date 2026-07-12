@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useState } from "react";
-import { FileText, Download, Book, Plus, X, Search, Upload, Loader2 } from "lucide-react";
-import { authClient, getToken } from "../lib/auth";
+import { FileText, Download, Book, Plus, X, Search } from "lucide-react";
+import { authClient } from "../lib/auth";
 
 export default function ConteudosPage() {
   const qc = useQueryClient();
@@ -10,9 +10,6 @@ export default function ConteudosPage() {
   const [typeFilter, setTypeFilter] = useState<"todos" | "pdf" | "ebook">("todos");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", type: "pdf", fileUrl: "", category: "programa" });
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [addError, setAddError] = useState("");
 
   const { data: session } = authClient.useSession();
   const isAdmin = ((session?.user as any)?.role ?? "") === "admin";
@@ -22,30 +19,8 @@ export default function ConteudosPage() {
 
   const addMutation = useMutation({
     mutationFn: async (d: typeof form) => (await api.documents.$post({ json: d })).json(),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["documents"] }); setShowAdd(false); setForm({ title: "", description: "", type: "pdf", fileUrl: "", category: "programa" }); setFile(null); setAddError(""); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["documents"] }); setShowAdd(false); setForm({ title: "", description: "", type: "pdf", fileUrl: "", category: "programa" }); },
   });
-
-  // Submete: se houver ficheiro escolhido, carrega-o primeiro e usa o URL devolvido.
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAddError("");
-    let fileUrl = form.fileUrl.trim();
-    if (file) {
-      setUploading(true);
-      try {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/documents/upload", { method: "POST", headers: { Authorization: `Bearer ${getToken()}` }, body: fd });
-        const data = await res.json();
-        if (!res.ok) { setAddError(data.message || "Erro ao carregar o ficheiro."); return; }
-        fileUrl = data.url;
-      } catch {
-        setAddError("Erro ao carregar o ficheiro."); return;
-      } finally { setUploading(false); }
-    }
-    if (!fileUrl) { setAddError("Carrega um ficheiro ou cola um link."); return; }
-    addMutation.mutate({ ...form, fileUrl });
-  };
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => (await api.documents[":id"].$delete({ param: { id: String(id) } })).json(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["documents"] }),
@@ -145,7 +120,7 @@ export default function ConteudosPage() {
               <h3 className="text-lg font-black" style={{ color: "var(--black)" }}>Adicionar Conteúdo</h3>
               <button onClick={() => setShowAdd(false)} className="cursor-pointer"><X size={22} style={{ color: "var(--gray)" }} /></button>
             </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={e => { e.preventDefault(); addMutation.mutate(form); }} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--gray)" }}>Tipo</label>
                 <div className="flex gap-2">
@@ -173,41 +148,18 @@ export default function ConteudosPage() {
                   className="w-full px-4 py-3 rounded-xl text-sm border outline-none resize-none"
                   style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
               </div>
-              {/* Carregar ficheiro do computador */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--gray)" }}>Carregar ficheiro</label>
-                <label className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-colors hover:border-orange-300"
-                  style={{ borderColor: file ? "var(--orange)" : "var(--gray-lt)", background: "var(--cream)" }}>
-                  <Upload size={18} style={{ color: "var(--orange)" }} />
-                  <span className="text-sm truncate" style={{ color: file ? "var(--black)" : "var(--gray)" }}>
-                    {file ? file.name : "Escolher PDF ou EPUB (máx. 30 MB)"}
-                  </span>
-                  <input type="file" accept=".pdf,.epub,application/pdf,application/epub+zip" className="hidden"
-                    onChange={e => { const f = e.target.files?.[0] ?? null; setFile(f); if (f && !form.title) setForm(fm => ({ ...fm, title: f.name.replace(/\.[^.]+$/, "") })); }} />
-                </label>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px" style={{ background: "var(--gray-lt)" }} />
-                <span className="text-[10px] uppercase" style={{ color: "var(--gray)" }}>ou cola um link</span>
-                <div className="flex-1 h-px" style={{ background: "var(--gray-lt)" }} />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--gray)" }}>URL do ficheiro (opcional)</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--gray)" }}>Link do ficheiro</label>
                 <input value={form.fileUrl} onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))}
                   placeholder="https://drive.google.com/... ou link direto"
                   className="w-full px-4 py-3 rounded-xl text-sm border outline-none"
-                  style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
+                  style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }} required />
+                <p className="text-[10px] mt-1" style={{ color: "var(--gray)" }}>Carrega o PDF/ebook para o Google Drive ou Dropbox e cola aqui o link de partilha.</p>
               </div>
-
-              {addError && <p className="text-xs text-red-500">{addError}</p>}
-
-              <button type="submit" disabled={addMutation.isPending || uploading}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm text-white cursor-pointer disabled:opacity-60"
+              <button type="submit" disabled={addMutation.isPending}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white cursor-pointer"
                 style={{ background: "var(--orange)" }}>
-                {uploading ? <><Loader2 size={16} className="animate-spin" /> A carregar ficheiro...</>
-                  : addMutation.isPending ? "A adicionar..." : "Adicionar Conteúdo"}
+                {addMutation.isPending ? "A adicionar..." : "Adicionar Conteúdo"}
               </button>
             </form>
           </div>
