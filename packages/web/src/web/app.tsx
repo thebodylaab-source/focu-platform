@@ -14,6 +14,7 @@ import PrivacidadePage from "./pages/privacidade";
 import ReporPasswordPage from "./pages/repor-password";
 import CicloPage from "./pages/ciclo";
 import MensalidadePage from "./pages/mensalidade";
+import ChatPage from "./pages/chat";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,11 @@ export default function App() {
         <Route path="/mensalidade">
           <ProtectedRoute>
             <AppLayout><MensalidadePage /></AppLayout>
+          </ProtectedRoute>
+        </Route>
+        <Route path="/chat">
+          <ProtectedRoute>
+            <AppLayout><ChatPage /></AppLayout>
           </ProtectedRoute>
         </Route>
         <Route path="/admin">
