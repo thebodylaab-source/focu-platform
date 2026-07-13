@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { authClient, getToken } from "../lib/auth";
 import { useChatSocket } from "../lib/chat-socket";
-import { Send, Users, MessageCircle, ChevronLeft } from "lucide-react";
+import { Send, Users, MessageCircle, ChevronLeft, Trash2, VolumeX, Volume2, ShieldAlert, ChevronDown, ChevronUp } from "lucide-react";
+
+const RULES = [
+  "Respeito acima de tudo — nada de insultos, gozo ou comentários maldosos.",
+  "Sem comparações tóxicas nem comentários sobre o corpo das outras.",
+  "Isto é um espaço seguro de apoio — celebra as conquistas das outras. 💪",
+  "Nada de spam, vendas, links externos ou publicidade a outras marcas.",
+  "Não partilhes dados pessoais (telemóvel, morada, redes) na sala.",
+  "Sem conselhos médicos — dúvidas de saúde, fala com um profissional.",
+  "Proibido conteúdo ofensivo, impróprio ou ilegal.",
+  "A treinadora pode apagar mensagens e silenciar quem não respeitar.",
+];
 
 type Msg = { id: number; room: string; senderId: string; senderName: string; senderRole: string; body: string; createdAt: number };
 type Thread = { userId: string; name: string; lastBody: string; lastRole: string; lastAt: number };
@@ -21,17 +32,37 @@ export default function ChatPage() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const activeRef = useRef<string | null>(null); activeRef.current = activeThread;
+  const [muted, setMuted] = useState<Set<string>>(new Set());
 
   // Carregamentos iniciais
   const loadCommunity = () => fetch("/api/chat/community", { headers: authHeaders() }).then((r) => r.json()).then((d) => setCommunity(dedupe(d.messages ?? [])));
   const loadDm = () => fetch("/api/chat/dm", { headers: authHeaders() }).then((r) => r.json()).then((d) => setDm(dedupe(d.messages ?? [])));
   const loadThreads = () => fetch("/api/chat/threads", { headers: authHeaders() }).then((r) => r.json()).then((d) => setThreads(d.threads ?? []));
   const openThread = (uid: string) => { setActiveThread(uid); fetch(`/api/chat/dm/${uid}`, { headers: authHeaders() }).then((r) => r.json()).then((d) => setDm(dedupe(d.messages ?? []))); };
+  const loadMutes = () => fetch("/api/chat/mutes", { headers: authHeaders() }).then((r) => r.json()).then((d) => setMuted(new Set(d.muted ?? [])));
 
-  useEffect(() => { loadCommunity(); if (isAdmin) loadThreads(); else loadDm(); /* eslint-disable-next-line */ }, [isAdmin]);
+  useEffect(() => { loadCommunity(); if (isAdmin) { loadThreads(); loadMutes(); } else loadDm(); /* eslint-disable-next-line */ }, [isAdmin]);
+
+  // Moderação (admin)
+  const deleteMsg = async (id: number) => {
+    if (!confirm("Apagar esta mensagem?")) return;
+    await fetch(`/api/chat/message/${id}`, { method: "DELETE", headers: authHeaders() });
+    setCommunity((m) => m.filter((x) => x.id !== id)); setDm((m) => m.filter((x) => x.id !== id));
+  };
+  const toggleMute = async (uid: string, name: string) => {
+    const isMuted = muted.has(uid);
+    if (!isMuted && !confirm(`Silenciar ${name} na comunidade? (continua a poder falar contigo em privado)`)) return;
+    await fetch(`/api/chat/mute/${uid}`, { method: isMuted ? "DELETE" : "POST", headers: authHeaders() });
+    setMuted((s) => { const n = new Set(s); isMuted ? n.delete(uid) : n.add(uid); return n; });
+  };
 
   // Tempo real
   useChatSocket((p) => {
+    if (p?.type === "delete") {
+      if (p.room === "community") setCommunity((m) => m.filter((x) => x.id !== p.id));
+      else setDm((m) => m.filter((x) => x.id !== p.id));
+      return;
+    }
     if (p?.type !== "message") return;
     if (p.room === "community") { setCommunity((m) => dedupe([...m, p])); return; }
     if (typeof p.room === "string" && p.room.startsWith("dm:")) {
@@ -49,6 +80,9 @@ export default function ChatPage() {
     const res = await fetch(url, { method: "POST", headers: authHeaders(), body: JSON.stringify({ body: text }) });
     if (res.ok) { const d = await res.json(); const msg = d.message as Msg;
       if (msg.room === "community") setCommunity((m) => dedupe([...m, msg])); else setDm((m) => dedupe([...m, msg]));
+    } else {
+      const d = await res.json().catch(() => ({} as any));
+      alert(d.message || "Não foi possível enviar a mensagem.");
     }
   };
 
@@ -72,7 +106,11 @@ export default function ChatPage() {
 
       {/* Conteúdo */}
       {tab === "comunidade" ? (
-        <ChatWindow messages={community} myId={myId} showNames onSend={send} placeholder="Escreve à comunidade..." />
+        <div className="flex flex-col flex-1 min-h-0">
+          <CommunityRules />
+          <ChatWindow messages={community} myId={myId} showNames onSend={send} placeholder="Escreve à comunidade..."
+            admin={isAdmin} muted={muted} onDelete={deleteMsg} onMute={toggleMute} />
+        </div>
       ) : isAdmin && !activeThread ? (
         <Inbox threads={threads} onOpen={openThread} />
       ) : (
@@ -83,8 +121,31 @@ export default function ChatPage() {
             </button>
           )}
           <ChatWindow messages={dm} myId={myId} showNames={isAdmin} onSend={send}
-            placeholder={isAdmin ? "Responder à aluna..." : "Escreve à tua treinadora..."} />
+            placeholder={isAdmin ? "Responder à aluna..." : "Escreve à tua treinadora..."}
+            admin={isAdmin} muted={muted} onDelete={deleteMsg} onMute={toggleMute} />
         </div>
+      )}
+    </div>
+  );
+}
+
+function CommunityRules() {
+  // Aberto por defeito na primeira visita; depois fica como a aluna deixou.
+  const [open, setOpen] = useState<boolean>(() => { try { return localStorage.getItem("chat-rules-seen") !== "1"; } catch { return true; } });
+  const toggle = () => { setOpen((v) => { const n = !v; try { localStorage.setItem("chat-rules-seen", "1"); } catch { /* ignore */ } return n; }); };
+  return (
+    <div className="rounded-2xl mb-3 overflow-hidden" style={{ background: "#7C3AED10", border: "1px solid #7C3AED25" }}>
+      <button onClick={toggle} className="w-full flex items-center gap-2 px-4 py-2.5 cursor-pointer">
+        <ShieldAlert size={16} style={{ color: "#7C3AED" }} />
+        <span className="text-xs font-bold flex-1 text-left" style={{ color: "#7C3AED" }}>Regras da comunidade</span>
+        {open ? <ChevronUp size={16} style={{ color: "#7C3AED" }} /> : <ChevronDown size={16} style={{ color: "#7C3AED" }} />}
+      </button>
+      {open && (
+        <ul className="px-4 pb-3 space-y-1">
+          {RULES.map((r, i) => (
+            <li key={i} className="text-xs flex gap-2" style={{ color: "#555" }}><span style={{ color: "#7C3AED" }}>•</span> {r}</li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -108,7 +169,7 @@ function Inbox({ threads, onOpen }: { threads: Thread[]; onOpen: (uid: string) =
   );
 }
 
-function ChatWindow({ messages, myId, showNames, onSend, placeholder }: { messages: Msg[]; myId?: string; showNames?: boolean; onSend: (b: string) => void; placeholder: string }) {
+function ChatWindow({ messages, myId, showNames, onSend, placeholder, admin, muted, onDelete, onMute }: { messages: Msg[]; myId?: string; showNames?: boolean; onSend: (b: string) => void; placeholder: string; admin?: boolean; muted?: Set<string>; onDelete?: (id: number) => void; onMute?: (uid: string, name: string) => void }) {
   const [text, setText] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
@@ -119,13 +180,25 @@ function ChatWindow({ messages, myId, showNames, onSend, placeholder }: { messag
         {messages.length === 0 && <p className="text-center text-sm mt-8" style={{ color: "var(--gray)" }}>Ainda não há mensagens. Escreve a primeira! 👋</p>}
         {messages.map((m) => {
           const mine = m.senderId === myId;
+          const canModerate = admin && m.senderRole !== "admin";
           return (
-            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+            <div key={m.id} className={`flex items-center gap-1 group ${mine ? "justify-end" : "justify-start"}`}>
+              {canModerate && !mine && (
+                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => onDelete?.(m.id)} title="Apagar mensagem" className="cursor-pointer" style={{ color: "#EF4444" }}><Trash2 size={13} /></button>
+                  <button onClick={() => onMute?.(m.senderId, m.senderName)} title={muted?.has(m.senderId) ? "Reativar" : "Silenciar"} className="cursor-pointer" style={{ color: muted?.has(m.senderId) ? "#16A34A" : "var(--gray)" }}>
+                    {muted?.has(m.senderId) ? <Volume2 size={13} /> : <VolumeX size={13} />}
+                  </button>
+                </div>
+              )}
               <div className="max-w-[78%] rounded-2xl px-3 py-2" style={mine ? { background: "var(--orange)", color: "white" } : { background: "var(--cream)", color: "var(--black)" }}>
-                {showNames && !mine && <p className="text-[10px] font-bold mb-0.5" style={{ color: m.senderRole === "admin" ? "#7C3AED" : "var(--orange)" }}>{m.senderName}{m.senderRole === "admin" ? " · treinadora" : ""}</p>}
+                {showNames && !mine && <p className="text-[10px] font-bold mb-0.5" style={{ color: m.senderRole === "admin" ? "#7C3AED" : "var(--orange)" }}>{m.senderName}{m.senderRole === "admin" ? " · treinadora" : ""}{muted?.has(m.senderId) ? " · silenciada" : ""}</p>}
                 <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
                 <p className="text-[9px] mt-0.5 text-right" style={{ opacity: 0.6 }}>{timeOf(m.createdAt)}</p>
               </div>
+              {admin && mine && onDelete && (
+                <button onClick={() => onDelete(m.id)} title="Apagar" className="opacity-0 group-hover:opacity-100 cursor-pointer" style={{ color: "#EF4444" }}><Trash2 size={13} /></button>
+              )}
             </div>
           );
         })}

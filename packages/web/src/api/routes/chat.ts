@@ -44,6 +44,11 @@ export const chatRoute = new Hono()
     const u = c.get("user")!;
     const body = clean((await c.req.json()).body);
     if (!body) return c.json({ message: "Mensagem inválida (1–1000 caracteres)." }, 400);
+    // Silenciada? (admins nunca são bloqueados)
+    if (u.role !== "admin") {
+      const [m] = await db.select().from(schema.chatMutes).where(eq(schema.chatMutes.userId, u.id));
+      if (m) return c.json({ message: "Foste silenciada na comunidade. Podes na mesma falar com a treinadora." }, 403);
+    }
     const msg = await insertMessage("community", u, body);
     publish("community", { type: "message", ...msg });
     return c.json({ message: msg }, 201);
@@ -96,4 +101,26 @@ export const chatRoute = new Hono()
     const msg = await insertMessage(room, u, body);
     publishDm(room, { type: "message", ...msg });
     return c.json({ message: msg }, 201);
+  })
+  // --- Moderação (admin) ---
+  .delete("/message/:id", requireAdmin, async (c) => {
+    const id = parseInt(c.req.param("id"));
+    const [msg] = await db.select().from(schema.chatMessages).where(eq(schema.chatMessages.id, id));
+    if (!msg) return c.json({ ok: true }, 200);
+    await db.delete(schema.chatMessages).where(eq(schema.chatMessages.id, id));
+    const event = { type: "delete", id, room: msg.room };
+    if (msg.room.startsWith("dm:")) publishDm(msg.room, event); else publish(msg.room, event);
+    return c.json({ ok: true }, 200);
+  })
+  .get("/mutes", requireAdmin, async (c) => {
+    const rows = await db.select({ userId: schema.chatMutes.userId }).from(schema.chatMutes);
+    return c.json({ muted: rows.map((r) => r.userId) }, 200);
+  })
+  .post("/mute/:userId", requireAdmin, async (c) => {
+    await db.insert(schema.chatMutes).values({ userId: c.req.param("userId") }).onConflictDoNothing();
+    return c.json({ ok: true }, 200);
+  })
+  .delete("/mute/:userId", requireAdmin, async (c) => {
+    await db.delete(schema.chatMutes).where(eq(schema.chatMutes.userId, c.req.param("userId")));
+    return c.json({ ok: true }, 200);
   });
