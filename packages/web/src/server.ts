@@ -1,5 +1,7 @@
 import app from "./api";
 import { reconcileExpirations } from "./api/lib/access";
+import { auth } from "./api/auth";
+import { addSocket, removeSocket, type WsData } from "./api/chat/hub";
 
 // Reconciliação de expirações: despromove membros expirados e repromove
 // pendentes renovados. Corre no arranque e depois de hora a hora.
@@ -18,15 +20,25 @@ const port = Number(process.env.PORT ?? 3000);
 const distDir = `${import.meta.dir}/../dist`;
 const indexPath = `${distDir}/index.html`;
 
-const server = Bun.serve({
+const server = Bun.serve<WsData, {}>({
   port,
   hostname: "0.0.0.0",
-  async fetch(request) {
+  async fetch(request, server) {
     const url = new URL(request.url);
 
     // Healthcheck simples — responde sem tocar na API/auth/BD.
     if (url.pathname === "/healthz") {
       return new Response("ok", { status: 200 });
+    }
+
+    // WebSocket do chat: autentica pelo token na query e faz upgrade.
+    if (url.pathname === "/ws") {
+      const token = url.searchParams.get("token") ?? "";
+      const session = await auth.api.getSession({ headers: new Headers({ Authorization: `Bearer ${token}` }) });
+      const u = session?.user;
+      if (!u) return new Response("Unauthorized", { status: 401 });
+      const ok = server.upgrade(request, { data: { userId: u.id, name: u.name ?? "Aluna", role: (u as any).role ?? "member" } });
+      return ok ? undefined : new Response("Upgrade failed", { status: 400 });
     }
 
     // API e webhooks (Stripe) são tratados pelo Hono. O webhook do Stripe vive
@@ -53,6 +65,13 @@ const server = Bun.serve({
       status: 500,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
+  },
+  websocket: {
+    open(ws) { addSocket(ws); },
+    close(ws) { removeSocket(ws); },
+    // O envio de mensagens é feito por REST (POST /api/chat/...); o WS só
+    // serve para receber ao vivo. Respondemos a "ping" para manter viva a ligação.
+    message(ws, msg) { if (msg === "ping") ws.send("pong"); },
   },
 });
 

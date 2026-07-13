@@ -1,6 +1,20 @@
-import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, uniqueIndex, index } from "drizzle-orm/sqlite-core";
 
 export * from "./auth-schema";
+
+// Mensagens de chat. room = "community" (sala de todas) ou "dm:<userId da aluna>"
+// (conversa privada entre essa aluna e a admin/treinadora).
+export const chatMessages = sqliteTable("chat_messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  room: text("room").notNull(),
+  senderId: text("sender_id").notNull(),
+  senderName: text("sender_name").notNull(),
+  senderRole: text("sender_role").notNull(), // member | admin
+  body: text("body").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+}, (t) => ({
+  roomIdx: index("chat_room_idx").on(t.room, t.id),
+}));
 
 // Videos
 export const videos = sqliteTable("videos", {
