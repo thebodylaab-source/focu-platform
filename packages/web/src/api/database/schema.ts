@@ -16,6 +16,14 @@ export const chatMessages = sqliteTable("chat_messages", {
   roomIdx: index("chat_room_idx").on(t.room, t.id),
 }));
 
+// Alunas silenciadas na comunidade (não podem publicar na sala). A conversa
+// privada com a treinadora mantém-se sempre disponível.
+export const chatMutes = sqliteTable("chat_mutes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().unique(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // Videos
 export const videos = sqliteTable("videos", {
   id: integer("id").primaryKey({ autoIncrement: true }),
