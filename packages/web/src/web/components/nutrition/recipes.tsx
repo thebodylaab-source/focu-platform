@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Clock, Users, Flame, Plus, X, Search, ChevronDown, ChevronUp, Sparkles, Loader2, Heart } from "lucide-react";
 import { getToken, authClient } from "../../lib/auth";
+import { getAllMeals } from "../../lib/meals";
 
 const FILTERS = [
   { id: "sem-gluten", label: "Sem Glúten", emoji: "🌾" },
@@ -120,9 +121,16 @@ function RecipeCard({ recipe, fav = false, onToggleFav, isOwn = false, onDelete 
   };
 
   // "Fiz esta receita" — regista automaticamente no rastreador diário (hoje),
-  // com os valores já escalados às porções escolhidas.
+  // com os valores já escalados às porções escolhidas. O utilizador escolhe a refeição.
   const [logged, setLogged] = useState<"idle" | "saving" | "done">("idle");
-  const logRecipeToday = async () => {
+  const [pickingMeal, setPickingMeal] = useState(false);
+  const meals = getAllMeals();
+  // Sugere a refeição pela categoria da receita, mas o utilizador pode sempre trocar.
+  const suggestedMeal = meals.find(m => m.id === recipe.category)?.id
+    ?? (recipe.category === "principal" ? "almoco" : meals[0]?.id ?? "almoco");
+  const [chosenMeal, setChosenMeal] = useState(suggestedMeal);
+  const logRecipeToday = async (mealId: string) => {
+    setPickingMeal(false);
     setLogged("saving");
     try {
       const today = new Date().toISOString().split("T")[0];
@@ -136,7 +144,7 @@ function RecipeCard({ recipe, fav = false, onToggleFav, isOwn = false, onDelete 
           carbs: scaled(recipe.carbs) ?? 0,
           fat: scaled(recipe.fat) ?? 0,
           quantity: 1,
-          meal: "almoco",
+          meal: mealId,
           logDate: today,
         }),
       });
@@ -216,11 +224,37 @@ function RecipeCard({ recipe, fav = false, onToggleFav, isOwn = false, onDelete 
           })}
         </div>
 
-        <button onClick={logRecipeToday} disabled={logged !== "idle"}
+        <button onClick={() => setPickingMeal(true)} disabled={logged !== "idle"}
           className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl cursor-pointer mb-3 transition-opacity hover:opacity-80 disabled:opacity-70"
           style={logged === "done" ? { background: "#DCFCE7", color: "#16A34A" } : { background: "var(--orange)", color: "white" }}>
           {logged === "done" ? "✓ Adicionado ao registo de hoje" : logged === "saving" ? "A adicionar..." : "🍽️ Fiz esta receita — adicionar ao registo"}
         </button>
+
+        {pickingMeal && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setPickingMeal(false)}>
+            <div className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl" style={{ background: "var(--white)" }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-black" style={{ color: "var(--black)" }}>Em que refeição?</h4>
+                <button onClick={() => setPickingMeal(false)} className="cursor-pointer">
+                  <X size={18} style={{ color: "var(--gray)" }} />
+                </button>
+              </div>
+              <div className="space-y-1.5 mb-3 max-h-64 overflow-y-auto">
+                {meals.map(m => (
+                  <button key={m.id} onClick={() => setChosenMeal(m.id)}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium cursor-pointer text-left"
+                    style={chosenMeal === m.id ? { background: "var(--peach)", color: "var(--orange)" } : { background: "var(--cream)", color: "var(--black)" }}>
+                    <span>{m.emoji}</span>{m.label}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => logRecipeToday(chosenMeal)}
+                className="w-full py-2.5 rounded-xl text-sm font-bold text-white cursor-pointer" style={{ background: "var(--orange)" }}>
+                Confirmar
+              </button>
+            </div>
+          </div>
+        )}
 
         <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-xs font-semibold cursor-pointer" style={{ color: "var(--orange)" }}>
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
