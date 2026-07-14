@@ -19,13 +19,16 @@ const TABS = [
 
 export default function NutricaoPage() {
   const [location] = useLocation();
-  const defaultTab = location.includes("ciclo")
+  // O wouter devolve só o caminho (sem a query), por isso juntamos a query
+  // do browser para o link "?tab=receitas" (etc.) abrir no separador certo.
+  const loc = location + (typeof window !== "undefined" ? window.location.search : "");
+  const defaultTab = loc.includes("ciclo")
     ? "ciclo"
-    : location.includes("receitas")
+    : loc.includes("receitas")
     ? "receitas"
-    : location.includes("compras")
+    : loc.includes("compras")
       ? "compras"
-      : location.includes("calculador")
+      : loc.includes("calculador")
         ? "calculador"
         : "calorias";
   const [tab, setTab] = useState(defaultTab);
