@@ -147,7 +147,11 @@ export function DailyCyclePrompt() {
       {done && collapsed ? (
         <div className="mt-4 pt-4 flex items-center justify-between gap-2" style={{ borderTop: `1px solid ${p.color}25` }}>
           <p className="text-xs font-semibold" style={{ color: "#16A34A" }}>✓ Registo de hoje guardado</p>
-          <button onClick={() => markCollapsed(false)} className="text-[11px] font-semibold underline cursor-pointer" style={{ color: p.color }}>editar</button>
+          <button onClick={() => markCollapsed(false)}
+            className="flex items-center gap-1.5 text-xs font-bold cursor-pointer px-3 py-1.5 rounded-full transition-opacity hover:opacity-80"
+            style={{ color: p.color, background: p.color + "18" }}>
+            <Pencil size={13} /> Editar
+          </button>
         </div>
       ) : (
       <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${p.color}25` }}>
@@ -160,8 +164,9 @@ export function DailyCyclePrompt() {
               })()}
             </p>
             <button onClick={() => setCorrecting(true)}
-              className="flex items-center gap-1 text-[11px] font-semibold cursor-pointer shrink-0" style={{ color: p.color }}>
-              <Pencil size={11} /> corrigir
+              className="flex items-center gap-1.5 text-xs font-bold cursor-pointer shrink-0 px-3 py-1.5 rounded-full transition-opacity hover:opacity-80"
+              style={{ color: p.color, background: p.color + "18" }}>
+              <Pencil size={13} /> Corrigir
             </button>
           </div>
         ) : (
