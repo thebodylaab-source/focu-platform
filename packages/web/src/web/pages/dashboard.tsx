@@ -48,7 +48,7 @@ export default function DashboardPage() {
 
   const statsCards = [
     { icon: Play, label: "Vídeos disponíveis", value: videoCount, path: "/videos", color: "var(--orange)" },
-    { icon: FileText, label: "Conteúdos & PDFs", value: docCount, path: "/conteudos", color: "#7C3AED" },
+    { icon: FileText, label: "Conteúdos & PDFs", value: docCount, path: "/conteudos?tab=ficheiros", color: "#7C3AED" },
     { icon: Flame, label: "Calorias hoje", value: Math.round(totalCalToday) + " kcal", path: "/nutricao", color: "#EF4444" },
     { icon: Apple, label: "Nutrição", value: "Ver plano", path: "/nutricao", color: "var(--green)" },
   ];
@@ -56,7 +56,7 @@ export default function DashboardPage() {
   const quickLinks = [
     { label: "Treino de hoje", desc: "Acede ao vídeo do teu treino", path: "/videos", icon: Play, tag: "VÍDEO" },
     { label: "Receitas saudáveis", desc: "Ideias para alimentação equilibrada", path: "/nutricao?tab=receitas", icon: Apple, tag: "NUTRIÇÃO" },
-    { label: "Ebooks & PDFs", desc: "Guias e materiais do programa", path: "/conteudos", icon: FileText, tag: "CONTEÚDO" },
+    { label: "Ebooks & PDFs", desc: "Guias e materiais do programa", path: "/conteudos?tab=ficheiros", icon: FileText, tag: "CONTEÚDO" },
   ];
 
   return (

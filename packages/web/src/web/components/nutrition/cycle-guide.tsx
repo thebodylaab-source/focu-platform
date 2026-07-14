@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getToken } from "../../lib/auth";
 import { computeCycle, PHASES, type PhaseId } from "../../lib/cycle";
 import { Link } from "wouter";
-import { Dumbbell, Apple, Lightbulb, Settings2, Droplet, Loader2, Battery, Info, HeartHandshake, Play, CheckCircle2 } from "lucide-react";
+import { Dumbbell, Apple, Lightbulb, Pencil, Droplet, Loader2, Battery, Info, HeartHandshake, Play, CheckCircle2 } from "lucide-react";
 
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
 const todayStr = () => new Date().toISOString().split("T")[0];
@@ -200,7 +200,7 @@ export default function CycleGuide() {
           </div>
           <button onClick={() => { setForm({ lastPeriodStart: cycle.lastPeriodStart, cycleLength: String(cycle.cycleLength), periodLength: String(cycle.periodLength), contraceptiveMethod: cycle.contraceptiveMethod ?? "nenhum" }); setEditing(true); }}
             className="p-2 rounded-xl cursor-pointer shrink-0" style={{ background: "var(--white)", color: "var(--gray)" }} title="Editar ciclo">
-            <Settings2 size={16} />
+            <Pencil size={16} />
           </button>
         </div>
 
@@ -400,7 +400,7 @@ export default function CycleGuide() {
       <button onClick={() => { setForm({ lastPeriodStart: cycle.lastPeriodStart, cycleLength: String(cycle.cycleLength), periodLength: String(cycle.periodLength), contraceptiveMethod: cycle.contraceptiveMethod ?? "nenhum" }); setEditing(true); }}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold cursor-pointer transition-opacity hover:opacity-80"
         style={{ background: "var(--cream)", color: "var(--gray)" }}>
-        <Settings2 size={15} />
+        <Pencil size={15} />
         Corrigir dados do ciclo
       </button>
 

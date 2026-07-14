@@ -4,12 +4,10 @@ import FoodTracker from "../components/nutrition/food-tracker";
 import Recipes from "../components/nutrition/recipes";
 import ShoppingList from "../components/nutrition/shopping-list";
 import CalorieCalculator from "../components/nutrition/calorie-calculator";
-import CycleGuide from "../components/nutrition/cycle-guide";
-import { Flame, ListChecks, ChefHat, ShoppingCart, Calculator, Moon } from "lucide-react";
+import { Flame, ListChecks, ChefHat, ShoppingCart, Calculator } from "lucide-react";
 import { useLocation } from "wouter";
 
 const TABS = [
-  { id: "ciclo", label: "O Meu Ciclo", icon: Moon },
   { id: "calorias", label: "Contador", icon: Flame },
   { id: "rastreador", label: "Rastreador", icon: ListChecks },
   { id: "receitas", label: "Receitas", icon: ChefHat },
@@ -22,9 +20,7 @@ export default function NutricaoPage() {
   // O wouter devolve só o caminho (sem a query), por isso juntamos a query
   // do browser para o link "?tab=receitas" (etc.) abrir no separador certo.
   const loc = location + (typeof window !== "undefined" ? window.location.search : "");
-  const defaultTab = loc.includes("ciclo")
-    ? "ciclo"
-    : loc.includes("receitas")
+  const defaultTab = loc.includes("receitas")
     ? "receitas"
     : loc.includes("compras")
       ? "compras"
@@ -55,7 +51,6 @@ export default function NutricaoPage() {
 
       {/* Tab content */}
       <div className="fade-up">
-        {tab === "ciclo" && <CycleGuide />}
         {tab === "calculador" && <CalorieCalculator />}
         {tab === "calorias" && <CalorieCounter />}
         {tab === "rastreador" && <FoodTracker />}
