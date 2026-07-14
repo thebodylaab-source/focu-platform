@@ -119,6 +119,34 @@ function RecipeCard({ recipe, fav = false, onToggleFav, isOwn = false, onDelete 
     }
   };
 
+  // "Fiz esta receita" — regista automaticamente no rastreador diário (hoje),
+  // com os valores já escalados às porções escolhidas.
+  const [logged, setLogged] = useState<"idle" | "saving" | "done">("idle");
+  const logRecipeToday = async () => {
+    setLogged("saving");
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      await fetch("/api/nutrition/logs", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          foodName: recipe.title,
+          calories: scaled(recipe.calories) ?? 0,
+          protein: scaled(recipe.protein) ?? 0,
+          carbs: scaled(recipe.carbs) ?? 0,
+          fat: scaled(recipe.fat) ?? 0,
+          quantity: 1,
+          meal: "almoco",
+          logDate: today,
+        }),
+      });
+      setLogged("done");
+      setTimeout(() => setLogged("idle"), 2500);
+    } catch {
+      setLogged("idle");
+    }
+  };
+
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--white)" }}>
       <div className="h-3" style={{ background: "var(--orange)" }} />
@@ -187,6 +215,12 @@ function RecipeCard({ recipe, fav = false, onToggleFav, isOwn = false, onDelete 
             ) : null;
           })}
         </div>
+
+        <button onClick={logRecipeToday} disabled={logged !== "idle"}
+          className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl cursor-pointer mb-3 transition-opacity hover:opacity-80 disabled:opacity-70"
+          style={logged === "done" ? { background: "#DCFCE7", color: "#16A34A" } : { background: "var(--orange)", color: "white" }}>
+          {logged === "done" ? "✓ Adicionado ao registo de hoje" : logged === "saving" ? "A adicionar..." : "🍽️ Fiz esta receita — adicionar ao registo"}
+        </button>
 
         <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-xs font-semibold cursor-pointer" style={{ color: "var(--orange)" }}>
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -598,7 +632,7 @@ export default function Recipes() {
               {sections.map(sec => (
                 <div key={sec.label}>
                   <h3 className="text-base font-black mb-3" style={{ color: "var(--black)" }}>{sec.emoji} {sec.label}</h3>
-                  <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+                  <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar items-start">
                     {sec.items.map((r: any) => (
                       <div key={r.id} className="shrink-0 w-[280px]"><RecipeCard recipe={r} {...cardProps(r)} /></div>
                     ))}
@@ -615,7 +649,7 @@ export default function Recipes() {
           <p className="text-sm mt-1" style={{ color: "var(--gray)" }}>Quando outras alunas criarem receitas, aparecem aqui para te inspirares.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
           {filtered.map((r: any) => <RecipeCard key={r.id} recipe={r} {...cardProps(r)} />)}
         </div>
       )}
