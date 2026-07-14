@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getToken } from "../../lib/auth";
 import { computeCycle, PHASES, type PhaseId } from "../../lib/cycle";
 import { Link } from "wouter";
-import { Dumbbell, Apple, Lightbulb, Settings2, Droplet, Loader2, Battery, Info, HeartHandshake, Play } from "lucide-react";
+import { Dumbbell, Apple, Lightbulb, Settings2, Droplet, Loader2, Battery, Info, HeartHandshake, Play, CheckCircle2 } from "lucide-react";
 
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
 const todayStr = () => new Date().toISOString().split("T")[0];
@@ -83,6 +83,15 @@ export default function CycleGuide() {
   const periodStarted = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/cycle/period-started", { method: "POST", headers: authHeaders(), body: JSON.stringify({}) });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle"] }),
+  });
+
+  const periodEnded = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/cycle/period-ended", { method: "POST", headers: authHeaders() });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any).message || "Erro"); }
       return res.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cycle"] }),
@@ -211,6 +220,42 @@ export default function CycleGuide() {
           </div>
         </div>
         <p className="text-xs mt-3" style={{ color: "#555" }}>{p.energyText}</p>
+
+        {/* Atalhos "começou/acabou hoje" — junto ao cartão da fase, sempre visíveis */}
+        <div className="flex gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${p.color}25` }}>
+          <button onClick={() => periodStarted.mutate()} disabled={periodStarted.isPending}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-60"
+            style={{ background: "#DC262615", color: "#DC2626", border: "1.5px solid #DC262640" }}>
+            {periodStarted.isPending ? <Loader2 size={14} className="animate-spin" /> : <Droplet size={14} />}
+            Começou hoje
+          </button>
+          <button onClick={() => periodEnded.mutate()} disabled={periodEnded.isPending}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-60"
+            style={{ background: "#16A34A15", color: "#16A34A", border: "1.5px solid #16A34A40" }}>
+            {periodEnded.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+            Acabou hoje
+          </button>
+        </div>
+        {periodEnded.isError && <p className="text-[10px] mt-2 text-red-600">{(periodEnded.error as Error).message}</p>}
+      </div>
+
+      {/* Linha temporal das fases */}
+      <div className="rounded-2xl p-5" style={{ background: "var(--white)" }}>
+        <p className="text-xs font-black uppercase tracking-wider mb-3" style={{ color: "var(--gray)" }}>As tuas fases</p>
+        <div className="flex gap-1.5 mb-3">
+          {phaseOrder.map(id => (
+            <div key={id} className="flex-1 text-center">
+              <div className="h-1.5 rounded-full mb-1.5" style={{ background: id === p.id ? PHASES[id].color : PHASES[id].color + "35" }} />
+              <span className="text-[10px] font-semibold" style={{ color: id === p.id ? PHASES[id].color : "var(--gray)" }}>
+                {PHASES[id].emoji}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs" style={{ color: "var(--gray)" }}>
+          Próxima menstruação estimada em <strong style={{ color: "var(--black)" }}>{t.daysUntilNextPeriod} {t.daysUntilNextPeriod === 1 ? "dia" : "dias"}</strong>{" "}
+          ({new Date(t.nextPeriodDate + "T12:00:00").toLocaleDateString("pt-PT", { day: "numeric", month: "long" })}).
+        </p>
       </div>
 
       {/* #6 O que se passa no corpo */}
@@ -281,25 +326,6 @@ export default function CycleGuide() {
         <p className="text-xs" style={{ color: "#7a5a48" }}><strong>Dica:</strong> {p.tip}</p>
       </div>
 
-      {/* Linha temporal das fases */}
-      <div className="rounded-2xl p-5" style={{ background: "var(--white)" }}>
-        <p className="text-xs font-black uppercase tracking-wider mb-3" style={{ color: "var(--gray)" }}>As tuas fases</p>
-        <div className="flex gap-1.5 mb-3">
-          {phaseOrder.map(id => (
-            <div key={id} className="flex-1 text-center">
-              <div className="h-1.5 rounded-full mb-1.5" style={{ background: id === p.id ? PHASES[id].color : PHASES[id].color + "35" }} />
-              <span className="text-[10px] font-semibold" style={{ color: id === p.id ? PHASES[id].color : "var(--gray)" }}>
-                {PHASES[id].emoji}
-              </span>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs" style={{ color: "var(--gray)" }}>
-          Próxima menstruação estimada em <strong style={{ color: "var(--black)" }}>{t.daysUntilNextPeriod} {t.daysUntilNextPeriod === 1 ? "dia" : "dias"}</strong>{" "}
-          ({new Date(t.nextPeriodDate + "T12:00:00").toLocaleDateString("pt-PT", { day: "numeric", month: "long" })}).
-        </p>
-      </div>
-
       {/* #4 Os teus padrões */}
       {(() => {
         const ins = insightsData?.insights;
@@ -342,14 +368,6 @@ export default function CycleGuide() {
           </div>
         );
       })()}
-
-      {/* Atalho período começou */}
-      <button onClick={() => periodStarted.mutate()} disabled={periodStarted.isPending}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold cursor-pointer border transition-opacity hover:opacity-80 disabled:opacity-60"
-        style={{ borderColor: "#DC2626", color: "#DC2626", background: "transparent" }}>
-        {periodStarted.isPending ? <Loader2 size={15} className="animate-spin" /> : <Droplet size={15} />}
-        O período começou hoje
-      </button>
 
       {/* Corrigir dados caso o registo esteja errado */}
       <button onClick={() => { setForm({ lastPeriodStart: cycle.lastPeriodStart, cycleLength: String(cycle.cycleLength), periodLength: String(cycle.periodLength), contraceptiveMethod: cycle.contraceptiveMethod ?? "nenhum" }); setEditing(true); }}

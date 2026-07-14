@@ -210,4 +210,23 @@ export const cycleRoute = new Hono()
       contraceptiveMethod: existing?.contraceptiveMethod ?? "nenhum",
     });
     return c.json({ cycle: row }, 200);
+  })
+  // Atalho: "o período acabou hoje" — encurta a duração da menstruação para
+  // este ciclo, só se hoje for mais cedo do que a duração já registada
+  // (nunca a aumenta, para não sobrepor um valor mais preciso).
+  .post("/period-ended", requireAuth, async (c) => {
+    const user = c.get("user")!;
+    const [existing] = await db.select().from(schema.cycleTracking).where(eq(schema.cycleTracking.userId, user.id));
+    if (!existing) return c.json({ message: "Ainda não configuraste o teu ciclo." }, 400);
+    const start = new Date(existing.lastPeriodStart + "T12:00:00");
+    const now = new Date(today() + "T12:00:00");
+    const daysSinceStart = Math.round((now.getTime() - start.getTime()) / 86400_000) + 1;
+    const periodLength = Math.max(1, Math.min(existing.periodLength, daysSinceStart));
+    const row = await upsert(user.id, {
+      lastPeriodStart: existing.lastPeriodStart,
+      cycleLength: existing.cycleLength,
+      periodLength,
+      contraceptiveMethod: existing.contraceptiveMethod ?? "nenhum",
+    });
+    return c.json({ cycle: row }, 200);
   });
