@@ -17,12 +17,24 @@ const SYMPTOM_LABELS: Record<string, string> = {
   grata: "🥰 grata", hidratada: "💧 hidratada", "comi-bem": "🍎 comi bem", relax: "🧘 dias calmos",
 };
 
-type CycleRow = { lastPeriodStart: string; cycleLength: number; periodLength: number } | null;
+type CycleRow = { lastPeriodStart: string; cycleLength: number; periodLength: number; contraceptiveMethod?: string } | null;
+
+// Cada método interfere de forma diferente no ciclo hormonal real — por isso
+// a previsão de fases é menos fiável e a mensagem explica porquê.
+const CONTRACEPTIVE_OPTIONS: { id: string; label: string; note?: string }[] = [
+  { id: "nenhum", label: "Nenhum / método não hormonal (preservativo, etc.)" },
+  { id: "pilula", label: "Pílula", note: "A pílula suprime a ovulação e mantém as hormonas estáveis — não existe um pico de ovulação real. As fases mostradas são só uma referência aproximada." },
+  { id: "diu-hormonal", label: "DIU hormonal (Mirena, Kyleena...)", note: "O DIU hormonal pode tornar o período muito leve ou ausente, mas na maioria dos casos não impede a ovulação. A duração do período pode não refletir o ciclo real." },
+  { id: "diu-cobre", label: "DIU de cobre", note: "O DIU de cobre não tem hormonas — o teu ciclo é natural, mas pode ter períodos mais intensos ou dolorosos que o habitual." },
+  { id: "implante", label: "Implante subcutâneo", note: "O implante costuma suprimir a ovulação e pode tornar o ciclo irregular ou o período ausente — as previsões de fase são pouco fiáveis." },
+  { id: "injecao", label: "Injeção contracetiva", note: "A injeção costuma suprimir a ovulação e pode tornar o ciclo irregular ou o período ausente — as previsões de fase são pouco fiáveis." },
+  { id: "outro", label: "Outro método" },
+];
 
 export default function CycleGuide() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ lastPeriodStart: todayStr(), cycleLength: "28", periodLength: "5" });
+  const [form, setForm] = useState({ lastPeriodStart: todayStr(), cycleLength: "28", periodLength: "5", contraceptiveMethod: "nenhum" });
   const [formError, setFormError] = useState("");
 
   const { data, isLoading } = useQuery({
@@ -58,6 +70,7 @@ export default function CycleGuide() {
           lastPeriodStart: form.lastPeriodStart,
           cycleLength: parseInt(form.cycleLength),
           periodLength: parseInt(form.periodLength),
+          contraceptiveMethod: form.contraceptiveMethod,
         }),
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any).message || "Erro ao guardar"); }
@@ -119,6 +132,15 @@ export default function CycleGuide() {
               <p className="text-[10px] mt-1" style={{ color: "var(--gray)" }}>Quantos dias costuma durar o período.</p>
             </div>
           </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--gray)" }}>Método contracetivo</label>
+            <select value={form.contraceptiveMethod} onChange={e => setForm(f => ({ ...f, contraceptiveMethod: e.target.value }))}
+              className="w-full px-4 py-3 rounded-xl text-sm border outline-none"
+              style={{ background: "var(--cream)", borderColor: "var(--gray-lt)", color: "var(--black)" }}>
+              {CONTRACEPTIVE_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+            </select>
+            <p className="text-[10px] mt-1" style={{ color: "var(--gray)" }}>Alguns métodos alteram o ciclo hormonal real — ajustamos o aviso conforme o teu.</p>
+          </div>
           {formError && <p className="text-xs text-red-500">{formError}</p>}
           <div className="flex gap-3">
             {cycle && (
@@ -143,9 +165,21 @@ export default function CycleGuide() {
   const t = computeCycle(cycle);
   const p = t.phase;
   const phaseOrder: PhaseId[] = ["menstrual", "folicular", "ovulacao", "lutea"];
+  const method = CONTRACEPTIVE_OPTIONS.find(o => o.id === (cycle.contraceptiveMethod ?? "nenhum"));
 
   return (
     <div className="space-y-4 fade-up">
+      {/* Aviso: método contracetivo interfere nas previsões */}
+      {method?.note && (
+        <div className="rounded-2xl p-4 flex gap-3" style={{ background: "#0891B212", border: "1.5px solid #0891B230" }}>
+          <span className="text-lg shrink-0">💊</span>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "#0891B2" }}>{method.label}</p>
+            <p className="text-xs leading-relaxed" style={{ color: "#555" }}>{method.note}</p>
+          </div>
+        </div>
+      )}
+
       {/* Cartão principal da fase */}
       <div className="rounded-3xl p-6 relative overflow-hidden" style={{ background: p.color + "12", border: `2px solid ${p.color}30` }}>
         <div className="flex items-start justify-between gap-3">
@@ -155,7 +189,7 @@ export default function CycleGuide() {
               <span className="text-3xl">{p.emoji}</span> {p.label}
             </h2>
           </div>
-          <button onClick={() => { setForm({ lastPeriodStart: cycle.lastPeriodStart, cycleLength: String(cycle.cycleLength), periodLength: String(cycle.periodLength) }); setEditing(true); }}
+          <button onClick={() => { setForm({ lastPeriodStart: cycle.lastPeriodStart, cycleLength: String(cycle.cycleLength), periodLength: String(cycle.periodLength), contraceptiveMethod: cycle.contraceptiveMethod ?? "nenhum" }); setEditing(true); }}
             className="p-2 rounded-xl cursor-pointer shrink-0" style={{ background: "var(--white)", color: "var(--gray)" }} title="Editar ciclo">
             <Settings2 size={16} />
           </button>
@@ -318,7 +352,7 @@ export default function CycleGuide() {
       </button>
 
       {/* Corrigir dados caso o registo esteja errado */}
-      <button onClick={() => { setForm({ lastPeriodStart: cycle.lastPeriodStart, cycleLength: String(cycle.cycleLength), periodLength: String(cycle.periodLength) }); setEditing(true); }}
+      <button onClick={() => { setForm({ lastPeriodStart: cycle.lastPeriodStart, cycleLength: String(cycle.cycleLength), periodLength: String(cycle.periodLength), contraceptiveMethod: cycle.contraceptiveMethod ?? "nenhum" }); setEditing(true); }}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold cursor-pointer transition-opacity hover:opacity-80"
         style={{ background: "var(--cream)", color: "var(--gray)" }}>
         <Settings2 size={15} />

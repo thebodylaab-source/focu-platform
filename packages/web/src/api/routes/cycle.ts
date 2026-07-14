@@ -8,18 +8,21 @@ import { computePhase, type CycleSettings, type PhaseId } from "../../shared/cyc
 const isDate = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const today = () => new Date().toISOString().split("T")[0];
 
+const CONTRACEPTIVE_METHODS = ["nenhum", "pilula", "diu-hormonal", "diu-cobre", "implante", "injecao", "outro"];
+
 // Valida e normaliza as definições do ciclo.
-function clean(body: any): { lastPeriodStart: string; cycleLength: number; periodLength: number } | string {
+function clean(body: any): { lastPeriodStart: string; cycleLength: number; periodLength: number; contraceptiveMethod: string } | string {
   if (!isDate(body.lastPeriodStart)) return "Data da última menstruação inválida.";
   if (body.lastPeriodStart > today()) return "A data não pode ser no futuro.";
   const cycleLength = Math.round(Number(body.cycleLength));
   if (!Number.isFinite(cycleLength) || cycleLength < 20 || cycleLength > 45) return "Duração do ciclo deve estar entre 20 e 45 dias.";
   const periodLength = Math.round(Number(body.periodLength ?? 5));
   if (!Number.isFinite(periodLength) || periodLength < 2 || periodLength > 10) return "Duração da menstruação deve estar entre 2 e 10 dias.";
-  return { lastPeriodStart: body.lastPeriodStart, cycleLength, periodLength };
+  const contraceptiveMethod = CONTRACEPTIVE_METHODS.includes(body.contraceptiveMethod) ? body.contraceptiveMethod : "nenhum";
+  return { lastPeriodStart: body.lastPeriodStart, cycleLength, periodLength, contraceptiveMethod };
 }
 
-async function upsert(userId: string, data: { lastPeriodStart: string; cycleLength: number; periodLength: number }) {
+async function upsert(userId: string, data: { lastPeriodStart: string; cycleLength: number; periodLength: number; contraceptiveMethod: string }) {
   const existing = await db.select().from(schema.cycleTracking).where(eq(schema.cycleTracking.userId, userId));
   if (existing.length > 0) {
     const [row] = await db.update(schema.cycleTracking)
@@ -204,6 +207,7 @@ export const cycleRoute = new Hono()
       lastPeriodStart: date,
       cycleLength: existing?.cycleLength ?? 28,
       periodLength: existing?.periodLength ?? 5,
+      contraceptiveMethod: existing?.contraceptiveMethod ?? "nenhum",
     });
     return c.json({ cycle: row }, 200);
   });

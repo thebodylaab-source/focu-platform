@@ -162,6 +162,9 @@ export const cycleTracking = sqliteTable("cycle_tracking", {
   lastPeriodStart: text("last_period_start").notNull(), // YYYY-MM-DD
   cycleLength: integer("cycle_length").notNull().default(28),
   periodLength: integer("period_length").notNull().default(5),
+  // Método contracetivo — interfere no ciclo hormonal real, por isso ajusta o
+  // aviso mostrado na orientação. "nenhum" = ciclo natural.
+  contraceptiveMethod: text("contraceptive_method").notNull().default("nenhum"),
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
