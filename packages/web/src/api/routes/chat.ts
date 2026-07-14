@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import { user } from "../database/auth-schema";
-import { and, eq, gt, desc, asc, like, inArray } from "drizzle-orm";
+import { and, eq, gt, desc, asc, like, inArray, ne } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { publish, publishDm } from "../chat/hub";
 
@@ -67,6 +67,16 @@ export const chatRoute = new Hono()
     const msg = await insertMessage(room, u, body);
     publishDm(room, { type: "message", ...msg });
     return c.json({ message: msg }, 201);
+  })
+  // --- Admin: lista de alunas para iniciar uma conversa nova ---
+  .get("/students", requireAdmin, async (c) => {
+    const q = (c.req.query("q") ?? "").trim();
+    const where = q
+      ? and(ne(user.role, "admin"), like(user.name, `%${q}%`))
+      : ne(user.role, "admin");
+    const rows = await db.select({ id: user.id, name: user.name, email: user.email })
+      .from(user).where(where).limit(30);
+    return c.json({ students: rows }, 200);
   })
   // --- Admin: caixa de entrada de conversas ---
   .get("/threads", requireAdmin, async (c) => {

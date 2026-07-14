@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { authClient, getToken } from "../lib/auth";
 import { useChatSocket } from "../lib/chat-socket";
-import { Send, Users, MessageCircle, ChevronLeft, Trash2, VolumeX, Volume2, ShieldAlert, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, Users, MessageCircle, ChevronLeft, Trash2, VolumeX, Volume2, ShieldAlert, ChevronDown, ChevronUp, Plus, Search, X } from "lucide-react";
 
 const RULES = [
   "Respeito acima de tudo — nada de insultos, gozo ou comentários maldosos.",
@@ -16,6 +16,7 @@ const RULES = [
 
 type Msg = { id: number; room: string; senderId: string; senderName: string; senderRole: string; body: string; createdAt: number };
 type Thread = { userId: string; name: string; lastBody: string; lastRole: string; lastAt: number };
+type Student = { id: string; name: string; email: string };
 
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
 const dedupe = (list: Msg[]) => Array.from(new Map(list.map((m) => [m.id, m])).values()).sort((a, b) => a.id - b.id);
@@ -33,12 +34,13 @@ export default function ChatPage() {
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const activeRef = useRef<string | null>(null); activeRef.current = activeThread;
   const [muted, setMuted] = useState<Set<string>>(new Set());
+  const [showNewChat, setShowNewChat] = useState(false);
 
   // Carregamentos iniciais
   const loadCommunity = () => fetch("/api/chat/community", { headers: authHeaders() }).then((r) => r.json()).then((d) => setCommunity(dedupe(d.messages ?? [])));
   const loadDm = () => fetch("/api/chat/dm", { headers: authHeaders() }).then((r) => r.json()).then((d) => setDm(dedupe(d.messages ?? [])));
   const loadThreads = () => fetch("/api/chat/threads", { headers: authHeaders() }).then((r) => r.json()).then((d) => setThreads(d.threads ?? []));
-  const openThread = (uid: string) => { setActiveThread(uid); fetch(`/api/chat/dm/${uid}`, { headers: authHeaders() }).then((r) => r.json()).then((d) => setDm(dedupe(d.messages ?? []))); };
+  const openThread = (uid: string) => { setActiveThread(uid); setShowNewChat(false); setTab("privado"); fetch(`/api/chat/dm/${uid}`, { headers: authHeaders() }).then((r) => r.json()).then((d) => setDm(dedupe(d.messages ?? []))); };
   const loadMutes = () => fetch("/api/chat/mutes", { headers: authHeaders() }).then((r) => r.json()).then((d) => setMuted(new Set(d.muted ?? [])));
 
   useEffect(() => { loadCommunity(); if (isAdmin) { loadThreads(); loadMutes(); } else loadDm(); /* eslint-disable-next-line */ }, [isAdmin]);
@@ -112,7 +114,7 @@ export default function ChatPage() {
             admin={isAdmin} muted={muted} onDelete={deleteMsg} onMute={toggleMute} />
         </div>
       ) : isAdmin && !activeThread ? (
-        <Inbox threads={threads} onOpen={openThread} />
+        <Inbox threads={threads} onOpen={openThread} onNew={() => setShowNewChat(true)} />
       ) : (
         <div className="flex flex-col flex-1 min-h-0">
           {isAdmin && (
@@ -125,6 +127,57 @@ export default function ChatPage() {
             admin={isAdmin} muted={muted} onDelete={deleteMsg} onMute={toggleMute} />
         </div>
       )}
+
+      {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} onPick={openThread} />}
+    </div>
+  );
+}
+
+function NewChatModal({ onClose, onPick }: { onClose: () => void; onPick: (uid: string) => void }) {
+  const [q, setQ] = useState("");
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const t = setTimeout(() => {
+      fetch(`/api/chat/students?q=${encodeURIComponent(q)}`, { headers: authHeaders() })
+        .then((r) => r.json()).then((d) => setStudents(d.students ?? [])).finally(() => setLoading(false));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl" style={{ background: "var(--white)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--gray-lt)" }}>
+          <p className="font-bold text-sm" style={{ color: "var(--black)" }}>Nova conversa</p>
+          <button onClick={onClose} className="cursor-pointer" style={{ color: "var(--gray)" }}><X size={18} /></button>
+        </div>
+        <div className="p-3">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "var(--cream)" }}>
+            <Search size={15} style={{ color: "var(--gray)" }} />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Pesquisar aluna pelo nome..."
+              className="flex-1 bg-transparent text-sm outline-none" style={{ color: "var(--black)" }} />
+          </div>
+        </div>
+        <div className="max-h-80 overflow-y-auto px-2 pb-3">
+          {loading ? (
+            <p className="text-center text-sm py-6" style={{ color: "var(--gray)" }}>A carregar...</p>
+          ) : students.length === 0 ? (
+            <p className="text-center text-sm py-6" style={{ color: "var(--gray)" }}>Nenhuma aluna encontrada.</p>
+          ) : students.map((s) => (
+            <button key={s.id} onClick={() => onPick(s.id)}
+              className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:opacity-80">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-sm shrink-0" style={{ background: "var(--orange)" }}>{s.name.charAt(0).toUpperCase()}</div>
+              <div className="min-w-0">
+                <p className="font-semibold text-sm truncate" style={{ color: "var(--black)" }}>{s.name}</p>
+                <p className="text-xs truncate" style={{ color: "var(--gray)" }}>{s.email}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -151,10 +204,17 @@ function CommunityRules() {
   );
 }
 
-function Inbox({ threads, onOpen }: { threads: Thread[]; onOpen: (uid: string) => void }) {
-  if (threads.length === 0) return <div className="flex-1 flex items-center justify-center text-sm" style={{ color: "var(--gray)" }}>Ainda não há conversas.</div>;
+function Inbox({ threads, onOpen, onNew }: { threads: Thread[]; onOpen: (uid: string) => void; onNew: () => void }) {
   return (
     <div className="flex-1 overflow-y-auto space-y-2">
+      <button onClick={onNew}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm text-white cursor-pointer transition-opacity hover:opacity-90"
+        style={{ background: "var(--orange)" }}>
+        <Plus size={16} /> Nova conversa
+      </button>
+      {threads.length === 0 && (
+        <p className="text-center text-sm py-8" style={{ color: "var(--gray)" }}>Ainda não há conversas. Começa uma com "Nova conversa".</p>
+      )}
       {threads.map((t) => (
         <button key={t.userId} onClick={() => onOpen(t.userId)} className="w-full text-left rounded-2xl p-4 cursor-pointer transition-all hover:shadow-sm flex items-center gap-3" style={{ background: "var(--white)" }}>
           <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0" style={{ background: "var(--orange)" }}>{t.name.charAt(0).toUpperCase()}</div>
