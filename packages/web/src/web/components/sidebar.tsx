@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { authClient, clearToken } from "../lib/auth";
-import { Home, Play, FileText, Apple, LogOut, ChevronRight, Shield, CreditCard, MessageCircle } from "lucide-react";
+import { Home, Play, FileText, Apple, LogOut, Menu, X, ChevronRight, Shield, CreditCard, MessageCircle } from "lucide-react";
 import { useState } from "react";
 
 // O Ciclo vive agora dentro da Nutrição (separador) — menos ícones na barra móvel.
@@ -90,36 +90,29 @@ export function Sidebar() {
         <SidebarContent />
       </aside>
 
-      {/* Mobile top bar — sem menu ☰ (a barra de baixo já navega). O único
-          atalho que faltava, "Renovar mensalidade", fica aqui à direita. */}
+      {/* Mobile top bar — menu ☰ (gaveta lateral) + atalho da mensalidade. */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-3 border-b" style={{ background: "var(--white)", borderColor: "var(--gray-lt)" }}>
         <img src="/focu-logo.jpg" alt="FO.CU" className="h-10 object-contain" />
-        <Link to="/mensalidade">
-          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-opacity hover:opacity-90" style={{ background: "var(--orange)", color: "white" }}>
-            <CreditCard size={15} /> Mensalidade
-          </div>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/mensalidade">
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-opacity hover:opacity-90" style={{ background: "var(--orange)", color: "white" }}>
+              <CreditCard size={15} /> Mensalidade
+            </div>
+          </Link>
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-xl" style={{ background: "var(--peach)" }}>
+            {mobileOpen ? <X size={22} style={{ color: "var(--orange)" }} /> : <Menu size={22} style={{ color: "var(--orange)" }} />}
+          </button>
+        </div>
       </div>
 
-      {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex border-t" style={{ background: "var(--white)", borderColor: "var(--gray-lt)" }}>
-        {allNavItems.map(({ path, icon: Icon, label }) => {
-          const active = location === path || (path !== "/" && location.startsWith(path));
-          const activeColor = label === "Admin" ? "#7C3AED" : "var(--orange)";
-          return (
-            <Link key={path} to={path} className="flex-1">
-              <div className={`flex flex-col items-center py-2 gap-0.5 cursor-pointer`}>
-                <Icon size={22} style={{ color: active ? activeColor : "var(--gray)" }} />
-                <span className="text-[10px] font-medium" style={{ color: active ? activeColor : "var(--gray)" }}>{label}</span>
-              </div>
-            </Link>
-          );
-        })}
-        <button onClick={handleSignOut} className="flex-1 flex flex-col items-center py-2 gap-0.5 cursor-pointer">
-          <LogOut size={22} style={{ color: "var(--gray)" }} />
-          <span className="text-[10px] font-medium" style={{ color: "var(--gray)" }}>Sair</span>
-        </button>
-      </nav>
+      {/* Gaveta lateral (menu) */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-30" onClick={() => setMobileOpen(false)} style={{ background: "rgba(0,0,0,0.4)" }}>
+          <div className="absolute top-0 left-0 w-72 h-full shadow-2xl" style={{ background: "var(--white)" }} onClick={e => e.stopPropagation()}>
+            <SidebarContent />
+          </div>
+        </div>
+      )}
     </>
   );
 }
