@@ -168,6 +168,19 @@ export const cycleTracking = sqliteTable("cycle_tracking", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
+// Histórico de ciclos: um registo por menstruação (início + fim quando
+// conhecido). A duração do ciclo e da menstruação em cycleTracking passam a
+// ser uma MÉDIA calculada a partir deste histórico, não um valor fixo.
+export const cyclePeriods = sqliteTable("cycle_periods", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  startDate: text("start_date").notNull(), // YYYY-MM-DD
+  endDate: text("end_date"), // YYYY-MM-DD, null enquanto a menstruação não "acabou"
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+}, (t) => ({
+  userIdx: index("cycle_periods_user_idx").on(t.userId, t.startDate),
+}));
+
 // Check-in diário do ciclo (como se sente cada dia) — 1 por dia por aluna
 export const cycleCheckins = sqliteTable("cycle_checkins", {
   id: integer("id").primaryKey({ autoIncrement: true }),

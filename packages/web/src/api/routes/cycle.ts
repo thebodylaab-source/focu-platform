@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, asc, desc, isNull } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
-import { computePhase, type CycleSettings, type PhaseId } from "../../shared/cycle-core";
+import { computePhase, averageCycleAndPeriodLengths, type CycleSettings, type PhaseId } from "../../shared/cycle-core";
 
 const isDate = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const today = () => new Date().toISOString().split("T")[0];
@@ -35,16 +35,36 @@ async function upsert(userId: string, data: { lastPeriodStart: string; cycleLeng
   return row;
 }
 
+// Sem histórico suficiente, averageCycleAndPeriodLengths devolve null nesse
+// campo e quem chama mantém o valor já guardado.
+async function computeHistoryAverages(userId: string) {
+  const rows = await db.select().from(schema.cyclePeriods)
+    .where(eq(schema.cyclePeriods.userId, userId))
+    .orderBy(asc(schema.cyclePeriods.startDate));
+  return averageCycleAndPeriodLengths(rows);
+}
+
 export const cycleRoute = new Hono()
   .get("/", requireAuth, async (c) => {
     const user = c.get("user")!;
     const [row] = await db.select().from(schema.cycleTracking).where(eq(schema.cycleTracking.userId, user.id));
-    return c.json({ cycle: row ?? null }, 200);
+    const history = await computeHistoryAverages(user.id);
+    return c.json({ cycle: row ?? null, history }, 200);
   })
   .post("/", requireAuth, async (c) => {
     const user = c.get("user")!;
     const parsed = clean(await c.req.json());
     if (typeof parsed === "string") return c.json({ message: parsed }, 400);
+    // Primeira configuração: semeia o histórico com um ciclo "fechado" a
+    // partir da duração indicada, para já haver base para a média seguinte.
+    const already = await db.select({ id: schema.cyclePeriods.id }).from(schema.cyclePeriods).where(eq(schema.cyclePeriods.userId, user.id)).limit(1);
+    if (already.length === 0) {
+      const end = new Date(parsed.lastPeriodStart + "T12:00:00");
+      end.setDate(end.getDate() + parsed.periodLength - 1);
+      await db.insert(schema.cyclePeriods).values({
+        userId: user.id, startDate: parsed.lastPeriodStart, endDate: end.toISOString().split("T")[0],
+      });
+    }
     const row = await upsert(user.id, parsed);
     return c.json({ cycle: row }, 200);
   })
@@ -197,36 +217,62 @@ export const cycleRoute = new Hono()
       },
     }, 200);
   })
-  // Atalho: "o período começou hoje" — atualiza só a data, mantém as durações.
+  // Atalho: "o período começou hoje" — abre um novo ciclo no histórico e
+  // recalcula a média da duração do ciclo a partir dos ciclos anteriores.
   .post("/period-started", requireAuth, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json().catch(() => ({}));
     const date = isDate(body.date) && body.date <= today() ? body.date : today();
     const [existing] = await db.select().from(schema.cycleTracking).where(eq(schema.cycleTracking.userId, user.id));
+
+    // Se já houver um ciclo em aberto (sem fim registado), fecha-o primeiro
+    // usando a duração já conhecida — evita ciclos "em aberto" acumulados.
+    const [open] = await db.select().from(schema.cyclePeriods)
+      .where(and(eq(schema.cyclePeriods.userId, user.id), isNull(schema.cyclePeriods.endDate)))
+      .orderBy(desc(schema.cyclePeriods.startDate)).limit(1);
+    if (open) {
+      const end = new Date(open.startDate + "T12:00:00");
+      end.setDate(end.getDate() + (existing?.periodLength ?? 5) - 1);
+      await db.update(schema.cyclePeriods).set({ endDate: end.toISOString().split("T")[0] }).where(eq(schema.cyclePeriods.id, open.id));
+    }
+    await db.insert(schema.cyclePeriods).values({ userId: user.id, startDate: date, endDate: null });
+
+    const hist = await computeHistoryAverages(user.id);
     const row = await upsert(user.id, {
       lastPeriodStart: date,
-      cycleLength: existing?.cycleLength ?? 28,
+      cycleLength: hist.avgCycleLength ?? existing?.cycleLength ?? 28,
       periodLength: existing?.periodLength ?? 5,
       contraceptiveMethod: existing?.contraceptiveMethod ?? "nenhum",
     });
-    return c.json({ cycle: row }, 200);
+    return c.json({ cycle: row, history: hist }, 200);
   })
-  // Atalho: "o período acabou hoje" — encurta a duração da menstruação para
-  // este ciclo, só se hoje for mais cedo do que a duração já registada
-  // (nunca a aumenta, para não sobrepor um valor mais preciso).
+  // Atalho: "o período acabou hoje" — fecha o ciclo em aberto no histórico
+  // com a data de hoje e recalcula a média da duração da menstruação.
   .post("/period-ended", requireAuth, async (c) => {
     const user = c.get("user")!;
     const [existing] = await db.select().from(schema.cycleTracking).where(eq(schema.cycleTracking.userId, user.id));
     if (!existing) return c.json({ message: "Ainda não configuraste o teu ciclo." }, 400);
-    const start = new Date(existing.lastPeriodStart + "T12:00:00");
-    const now = new Date(today() + "T12:00:00");
-    const daysSinceStart = Math.round((now.getTime() - start.getTime()) / 86400_000) + 1;
-    const periodLength = Math.max(1, Math.min(existing.periodLength, daysSinceStart));
+
+    const [open] = await db.select().from(schema.cyclePeriods)
+      .where(and(eq(schema.cyclePeriods.userId, user.id), isNull(schema.cyclePeriods.endDate)))
+      .orderBy(desc(schema.cyclePeriods.startDate)).limit(1);
+
+    const end = today();
+    if (open) {
+      if (end < open.startDate) return c.json({ message: "A data não pode ser antes do início da menstruação." }, 400);
+      await db.update(schema.cyclePeriods).set({ endDate: end }).where(eq(schema.cyclePeriods.id, open.id));
+    } else {
+      // Sem ciclo em aberto (fluxo antigo/legado): fecha a partir do registo atual.
+      if (end < existing.lastPeriodStart) return c.json({ message: "A data não pode ser antes do início da menstruação." }, 400);
+      await db.insert(schema.cyclePeriods).values({ userId: user.id, startDate: existing.lastPeriodStart, endDate: end });
+    }
+
+    const hist = await computeHistoryAverages(user.id);
     const row = await upsert(user.id, {
       lastPeriodStart: existing.lastPeriodStart,
       cycleLength: existing.cycleLength,
-      periodLength,
+      periodLength: hist.avgPeriodLength ?? existing.periodLength,
       contraceptiveMethod: existing.contraceptiveMethod ?? "nenhum",
     });
-    return c.json({ cycle: row }, 200);
+    return c.json({ cycle: row, history: hist }, 200);
   });

@@ -41,7 +41,7 @@ export default function CycleGuide() {
     queryKey: ["cycle"],
     queryFn: async () => {
       const res = await fetch("/api/cycle", { headers: { Authorization: `Bearer ${getToken()}` } });
-      return res.json() as Promise<{ cycle: CycleRow }>;
+      return res.json() as Promise<{ cycle: CycleRow; history: { avgCycleLength: number | null; avgPeriodLength: number | null; cycleCount: number; periodCount: number } }>;
     },
   });
 
@@ -256,6 +256,18 @@ export default function CycleGuide() {
           Próxima menstruação estimada em <strong style={{ color: "var(--black)" }}>{t.daysUntilNextPeriod} {t.daysUntilNextPeriod === 1 ? "dia" : "dias"}</strong>{" "}
           ({new Date(t.nextPeriodDate + "T12:00:00").toLocaleDateString("pt-PT", { day: "numeric", month: "long" })}).
         </p>
+        {(() => {
+          const h = data?.history;
+          if (!h) return null;
+          if (h.cycleCount === 0 && h.periodCount === 0) {
+            return <p className="text-[10px] mt-2" style={{ color: "var(--gray)" }}>Usa "Começou hoje" e "Acabou hoje" ao longo dos próximos ciclos para a previsão passar a basear-se na média real do teu corpo.</p>;
+          }
+          return (
+            <p className="text-[10px] mt-2" style={{ color: "var(--gray)" }}>
+              📊 Duração média calculada a partir de {h.cycleCount > 0 ? `${h.cycleCount} ciclo${h.cycleCount === 1 ? "" : "s"}` : "poucos dados"}{h.periodCount > 0 ? ` e ${h.periodCount} menstruaç${h.periodCount === 1 ? "ão" : "ões"} registad${h.periodCount === 1 ? "a" : "as"}` : ""}. Quanto mais registares, mais precisa fica.
+            </p>
+          );
+        })()}
       </div>
 
       {/* #6 O que se passa no corpo */}

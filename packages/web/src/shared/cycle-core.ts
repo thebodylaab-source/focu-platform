@@ -52,3 +52,33 @@ export function isRestForgiven(settings: CycleSettings, dateStr: string): boolea
   const c = computePhase(settings, dateStr);
   return c.phaseId === "menstrual" || c.daysUntilNextPeriod <= 2;
 }
+
+export type PeriodRecord = { startDate: string; endDate: string | null };
+export type HistoryAverages = {
+  avgCycleLength: number | null; avgPeriodLength: number | null; cycleCount: number; periodCount: number;
+};
+
+const dayDiff = (a: string, b: string) => Math.round((atNoon(b).getTime() - atNoon(a).getTime()) / MS_DAY);
+
+// Média dos últimos ciclos registados (histórico de "começou/acabou hoje").
+// Usa no máximo os `maxSamples` mais recentes, para a previsão acompanhar
+// mudanças recentes sem um único ciclo atípico distorcer tudo demasiado.
+// `rows` tem de vir ordenado por startDate ascendente.
+export function averageCycleAndPeriodLengths(rows: PeriodRecord[], maxSamples = 6): HistoryAverages {
+  const periodLens = rows.filter(r => r.endDate).map(r => dayDiff(r.startDate, r.endDate!) + 1);
+  const lastPeriodLens = periodLens.slice(-maxSamples);
+
+  const cycleLens: number[] = [];
+  for (let i = 1; i < rows.length; i++) cycleLens.push(dayDiff(rows[i - 1].startDate, rows[i].startDate));
+  const lastCycleLens = cycleLens.slice(-maxSamples);
+
+  const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+  const clamp = (v: number | null, min: number, max: number) => v === null ? null : Math.max(min, Math.min(max, v));
+
+  return {
+    avgCycleLength: clamp(avg(lastCycleLens), 20, 45),
+    avgPeriodLength: clamp(avg(lastPeriodLens), 2, 10),
+    cycleCount: lastCycleLens.length,
+    periodCount: lastPeriodLens.length,
+  };
+}
