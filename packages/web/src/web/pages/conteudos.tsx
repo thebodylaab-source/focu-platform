@@ -1,10 +1,49 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useState } from "react";
-import { FileText, Download, Book, Plus, X, Search } from "lucide-react";
+import { FileText, Download, Book, Plus, X, Search, Play } from "lucide-react";
 import { authClient } from "../lib/auth";
+import VideosPage from "./videos";
+
+const TABS = [
+  { id: "videos", label: "Vídeos", icon: Play },
+  { id: "ficheiros", label: "Ficheiros & Ebooks", icon: FileText },
+] as const;
 
 export default function ConteudosPage() {
+  const initialTab = (() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t === "ficheiros" ? "ficheiros" : "videos";
+  })();
+  const [tab, setTab] = useState<"videos" | "ficheiros">(initialTab);
+
+  return (
+    <div className="fade-up space-y-6">
+      <div>
+        <h1 className="text-2xl font-black" style={{ color: "var(--black)" }}>Conteúdos 📚</h1>
+        <p className="text-sm mt-1" style={{ color: "var(--gray)" }}>Vídeos do programa, PDFs e ebooks — tudo num só sítio.</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex rounded-2xl p-1 gap-1" style={{ background: "var(--white)" }}>
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button key={id} onClick={() => setTab(id)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-3 px-3 rounded-xl text-xs font-semibold cursor-pointer transition-all whitespace-nowrap"
+            style={tab === id ? { background: "var(--orange)", color: "white" } : { color: "var(--gray)" }}>
+            <Icon size={15} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="fade-up">
+        {tab === "videos" ? <VideosPage /> : <FilesSection />}
+      </div>
+    </div>
+  );
+}
+
+function FilesSection() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"todos" | "pdf" | "ebook">("todos");
@@ -33,13 +72,10 @@ export default function ConteudosPage() {
   });
 
   return (
-    <div className="fade-up space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black" style={{ color: "var(--black)" }}>Conteúdos & Ebooks 📚</h1>
-          <p className="text-sm mt-1" style={{ color: "var(--gray)" }}>{docs.length} ficheiros disponíveis para download</p>
-        </div>
+        <p className="text-sm" style={{ color: "var(--gray)" }}>{docs.length} ficheiros disponíveis para download</p>
         {isAdmin && (
           <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm text-white cursor-pointer transition-opacity hover:opacity-90" style={{ background: "var(--orange)" }}>
             <Plus size={18} />

@@ -1,14 +1,14 @@
 import { Link, useLocation } from "wouter";
 import { authClient, clearToken } from "../lib/auth";
-import { Home, Play, FileText, Apple, LogOut, Menu, X, ChevronRight, Shield, CreditCard, MessageCircle } from "lucide-react";
+import { Home, FileText, Apple, LogOut, Menu, X, ChevronRight, Shield, CreditCard, MessageCircle, Moon } from "lucide-react";
 import { useState } from "react";
 
-// O Ciclo vive agora dentro da Nutrição (separador) — menos ícones na barra móvel.
+// Vídeos vive agora dentro de Conteúdos (separador) — um item a menos no menu.
 const navItems = [
   { path: "/", icon: Home, label: "Início" },
-  { path: "/videos", icon: Play, label: "Vídeos" },
   { path: "/conteudos", icon: FileText, label: "Conteúdos" },
   { path: "/nutricao", icon: Apple, label: "Nutrição" },
+  { path: "/ciclo", icon: Moon, label: "Ciclo" },
   { path: "/chat", icon: MessageCircle, label: "Chat" },
 ];
 
