@@ -22,7 +22,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen" style={{ background: "var(--cream)" }}>
       <Sidebar />
-      <main className="flex-1 p-6 pb-24 pt-6 lg:pt-8 lg:pb-8 overflow-auto mt-14 lg:mt-0">
+      <main className="flex-1 p-6 pb-8 pt-6 lg:pt-8 overflow-auto mt-14 lg:mt-0">
         <div className="max-w-5xl mx-auto">
           {children}
         </div>
