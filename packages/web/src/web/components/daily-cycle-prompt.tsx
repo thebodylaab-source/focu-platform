@@ -107,7 +107,7 @@ export function DailyCyclePrompt() {
   // Sem ciclo configurado → convite
   if (!cycleData?.cycle) {
     return (
-      <Link to="/nutricao?tab=ciclo">
+      <Link to="/ciclo">
         <div className="rounded-2xl p-4 cursor-pointer transition-all hover:shadow-md flex items-center gap-3" style={{ background: "var(--peach)" }}>
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: "var(--white)" }}>
             <Moon size={20} style={{ color: "var(--orange)" }} />
@@ -129,7 +129,7 @@ export function DailyCyclePrompt() {
   return (
     <div className="rounded-2xl p-5" style={{ background: p.color + "12", border: `1.5px solid ${p.color}30` }}>
       {/* Fase de hoje */}
-      <Link to="/nutricao?tab=ciclo">
+      <Link to="/ciclo">
         <div className="flex items-center gap-3 cursor-pointer">
           <span className="text-3xl">{p.emoji}</span>
           <div className="flex-1 min-w-0">
