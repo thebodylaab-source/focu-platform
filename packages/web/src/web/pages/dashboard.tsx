@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { authClient, getToken } from "../lib/auth";
-import { Play, FileText, Apple, Flame, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Play, FileText, Apple, Flame, ChevronRight, CheckCircle2, Circle } from "lucide-react";
 import { Link } from "wouter";
 import { PushToggle } from "../components/push-toggle";
 import { DailyCyclePrompt } from "../components/daily-cycle-prompt";
@@ -147,10 +147,12 @@ export default function DashboardPage() {
                 onClick={() => checkinToggle.mutate()}
                 disabled={checkinToggle.isPending}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-60"
-                style={doneToday ? { background: "#DCFCE7", color: "#16A34A" } : { background: "var(--orange)", color: "white" }}
+                style={doneToday
+                  ? { background: "#DCFCE7", color: "#16A34A", border: "1.5px solid #16A34A" }
+                  : { background: "var(--orange)", color: "white", border: "1.5px solid var(--orange)" }}
               >
-                <CheckCircle2 size={16} />
-                {doneToday ? "Treino feito hoje!" : "Marcar treino de hoje"}
+                {doneToday ? <CheckCircle2 size={18} fill="#16A34A" color="white" /> : <Circle size={18} />}
+                {doneToday ? "Treino feito hoje! ✓" : "Ainda não treinei — marcar"}
               </button>
             </div>
             {/* #1: tirar a culpa nos dias baixos do ciclo */}
