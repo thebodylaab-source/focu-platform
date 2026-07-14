@@ -279,6 +279,49 @@ export default function CycleGuide() {
         })()}
       </div>
 
+      {/* #4 Os teus padrões — logo abaixo do registo começou/acabou */}
+      {(() => {
+        const ins = insightsData?.insights;
+        if (!ins) return null;
+        if (ins.totalCheckins < 5) {
+          return (
+            <div className="rounded-2xl p-4" style={{ background: "var(--white)" }}>
+              <p className="text-xs font-black uppercase tracking-wider mb-1" style={{ color: "var(--gray)" }}>Os teus padrões</p>
+              <p className="text-xs" style={{ color: "var(--gray)" }}>
+                Continua a registar como te sentes todos os dias. A partir de alguns registos, mostramos aqui o padrão do teu corpo ({ins.totalCheckins}/5).
+              </p>
+            </div>
+          );
+        }
+        const low = ins.lowestEnergyPhase ? PHASES[ins.lowestEnergyPhase] : null;
+        return (
+          <div className="rounded-2xl p-5" style={{ background: "var(--white)" }}>
+            <p className="text-xs font-black uppercase tracking-wider mb-3" style={{ color: "var(--gray)" }}>Os teus padrões 📈</p>
+            {low && (
+              <p className="text-sm mb-2" style={{ color: "var(--black)" }}>
+                Costumas ter <strong>menos energia</strong> na <strong style={{ color: low.color }}>{low.label} {low.emoji}</strong>. É normal e previsível — planeia descanso para essa fase.
+              </p>
+            )}
+            {ins.topSymptoms.length > 0 && (
+              <p className="text-xs mb-2" style={{ color: "var(--gray)" }}>
+                Sintomas mais frequentes: {ins.topSymptoms.map(s => SYMPTOM_LABELS[s.id] ?? s.id).join(", ")}.
+              </p>
+            )}
+            {ins.descontroloPhase && (
+              <p className="text-sm mb-1" style={{ color: "var(--black)" }}>
+                O <strong>descontrolo com a comida</strong> acontece mais na <strong style={{ color: PHASES[ins.descontroloPhase.phase].color }}>{PHASES[ins.descontroloPhase.phase].label}</strong> ({Math.round(ins.descontroloPhase.rate * 100)}% dos dias que registaste fome).
+              </p>
+            )}
+            {ins.emotionalHungerPhase && (
+              <p className="text-sm mb-1" style={{ color: "var(--black)" }}>
+                A <strong>fome emocional</strong> aparece mais na <strong style={{ color: PHASES[ins.emotionalHungerPhase.phase].color }}>{PHASES[ins.emotionalHungerPhase.phase].label}</strong>.
+              </p>
+            )}
+            <p className="text-[10px] mt-2" style={{ color: "var(--gray)" }}>Baseado nos teus {ins.totalCheckins} registos dos últimos 90 dias. Quanto mais registares, mais fiável fica.</p>
+          </div>
+        );
+      })()}
+
       {/* Treino + treino sugerido, num só cartão */}
       <div className="rounded-2xl p-5" style={{ background: "var(--white)" }}>
         <div className="flex items-center gap-2 mb-2">
@@ -352,49 +395,6 @@ export default function CycleGuide() {
           <p className="text-xs" style={{ color: "#7a5a48" }}><strong>Dica:</strong> {p.tip}</p>
         </div>
       )}
-
-      {/* #4 Os teus padrões */}
-      {(() => {
-        const ins = insightsData?.insights;
-        if (!ins) return null;
-        if (ins.totalCheckins < 5) {
-          return (
-            <div className="rounded-2xl p-4" style={{ background: "var(--white)" }}>
-              <p className="text-xs font-black uppercase tracking-wider mb-1" style={{ color: "var(--gray)" }}>Os teus padrões</p>
-              <p className="text-xs" style={{ color: "var(--gray)" }}>
-                Continua a registar como te sentes todos os dias. A partir de alguns registos, mostramos aqui o padrão do teu corpo ({ins.totalCheckins}/5).
-              </p>
-            </div>
-          );
-        }
-        const low = ins.lowestEnergyPhase ? PHASES[ins.lowestEnergyPhase] : null;
-        return (
-          <div className="rounded-2xl p-5" style={{ background: "var(--white)" }}>
-            <p className="text-xs font-black uppercase tracking-wider mb-3" style={{ color: "var(--gray)" }}>Os teus padrões 📈</p>
-            {low && (
-              <p className="text-sm mb-2" style={{ color: "var(--black)" }}>
-                Costumas ter <strong>menos energia</strong> na <strong style={{ color: low.color }}>{low.label} {low.emoji}</strong>. É normal e previsível — planeia descanso para essa fase.
-              </p>
-            )}
-            {ins.topSymptoms.length > 0 && (
-              <p className="text-xs mb-2" style={{ color: "var(--gray)" }}>
-                Sintomas mais frequentes: {ins.topSymptoms.map(s => SYMPTOM_LABELS[s.id] ?? s.id).join(", ")}.
-              </p>
-            )}
-            {ins.descontroloPhase && (
-              <p className="text-sm mb-1" style={{ color: "var(--black)" }}>
-                O <strong>descontrolo com a comida</strong> acontece mais na <strong style={{ color: PHASES[ins.descontroloPhase.phase].color }}>{PHASES[ins.descontroloPhase.phase].label}</strong> ({Math.round(ins.descontroloPhase.rate * 100)}% dos dias que registaste fome).
-              </p>
-            )}
-            {ins.emotionalHungerPhase && (
-              <p className="text-sm mb-1" style={{ color: "var(--black)" }}>
-                A <strong>fome emocional</strong> aparece mais na <strong style={{ color: PHASES[ins.emotionalHungerPhase.phase].color }}>{PHASES[ins.emotionalHungerPhase.phase].label}</strong>.
-              </p>
-            )}
-            <p className="text-[10px] mt-2" style={{ color: "var(--gray)" }}>Baseado nos teus {ins.totalCheckins} registos dos últimos 90 dias. Quanto mais registares, mais fiável fica.</p>
-          </div>
-        );
-      })()}
 
       {/* Corrigir dados caso o registo esteja errado */}
       <button onClick={() => { setForm({ lastPeriodStart: cycle.lastPeriodStart, cycleLength: String(cycle.cycleLength), periodLength: String(cycle.periodLength), contraceptiveMethod: cycle.contraceptiveMethod ?? "nenhum" }); setEditing(true); }}
