@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useState } from "react";
-import { Flame, Drumstick, Wheat, Droplets, Settings, Check } from "lucide-react";
+import { Flame, Drumstick, Wheat, Droplets, Pencil, Check } from "lucide-react";
 import { getToken } from "../../lib/auth";
 import { computeCycle } from "../../lib/cycle";
 
@@ -86,7 +86,7 @@ export default function CalorieCounter() {
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-black text-lg" style={{ color: "var(--black)" }}>Hoje — {new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" })}</h3>
           <button onClick={() => setEditing(!editing)} className="p-2 rounded-xl cursor-pointer" style={{ background: "var(--cream)" }}>
-            {editing ? <Check size={18} style={{ color: "var(--green)" }} /> : <Settings size={18} style={{ color: "var(--gray)" }} />}
+            {editing ? <Check size={18} style={{ color: "var(--green)" }} /> : <Pencil size={18} style={{ color: "var(--gray)" }} />}
           </button>
         </div>
 
@@ -179,7 +179,7 @@ export default function CalorieCounter() {
       <div className="rounded-2xl p-4 flex gap-3" style={{ background: "var(--peach)" }}>
         <span className="text-2xl">💡</span>
         <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--black)" }}>Dica do programa</p>
+          <p className="text-sm font-semibold" style={{ color: "var(--black)" }}>Sugestão</p>
           <p className="text-xs mt-0.5" style={{ color: "var(--gray)" }}>
             {calPct < 80 ? "Ainda tens espaço para comer bem. Não saltes refeições — o metabolismo agradece!" :
              calPct < 100 ? "Estás no bom caminho! Equilibra as refeições restantes com proteína e legumes." :
