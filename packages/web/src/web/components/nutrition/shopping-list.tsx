@@ -298,8 +298,8 @@ export default function ShoppingList() {
 
       {/* Add modal */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
-          <div className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl" style={{ background: "var(--white)" }}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: "var(--white)" }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-black" style={{ color: "var(--black)" }}>Adicionar item</h3>
               <button onClick={() => { setShowAdd(false); setGlobalSearch(""); }} className="cursor-pointer">
