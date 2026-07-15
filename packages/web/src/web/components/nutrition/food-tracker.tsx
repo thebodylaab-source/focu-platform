@@ -4,15 +4,7 @@ import { getToken } from "../../lib/auth";
 import { useState } from "react";
 import { Plus, Trash2, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { WeeklyReport } from "./weekly-report";
-
-const MEALS = [
-  { id: "pequeno-almoco", label: "Pequeno-almoço", emoji: "🌅" },
-  { id: "lanche-manha", label: "Lanche da manhã", emoji: "🍏" },
-  { id: "almoco", label: "Almoço", emoji: "☀️" },
-  { id: "lanche", label: "Lanche da tarde", emoji: "🍎" },
-  { id: "jantar", label: "Jantar", emoji: "🌙" },
-  { id: "ceia", label: "Ceia", emoji: "🌛" },
-];
+import { getAllMeals, addExtraMeal, removeExtraMeal } from "../../lib/meals";
 
 // Common foods database (PT)
 const COMMON_FOODS = [
@@ -46,6 +38,21 @@ export default function FoodTracker() {
   const [meal, setMeal] = useState("almoco");
   const [customFood, setCustomFood] = useState({ name: "", calories: 0, protein: 0, carbs: 0, fat: 0, servingSize: 100 });
   const [addMode, setAddMode] = useState<"search" | "custom">("search");
+  const [mealsVersion, setMealsVersion] = useState(0);
+  const MEALS = getAllMeals();
+  const addMealPrompt = () => {
+    const label = window.prompt("Nome da nova refeição (ex: Lanche da manhã 2):");
+    if (label && label.trim()) {
+      addExtraMeal(label.trim());
+      setMealsVersion(v => v + 1);
+    }
+  };
+  const removeMeal = (id: string) => {
+    if (confirm("Remover esta refeição extra? Os registos já feitos mantêm-se.")) {
+      removeExtraMeal(id);
+      setMealsVersion(v => v + 1);
+    }
+  };
 
   const { data: logsData, isLoading } = useQuery({
     queryKey: ["food-logs", date],
@@ -205,9 +212,16 @@ export default function FoodTracker() {
                   <span className="text-lg">{m.emoji}</span>
                   <span className="font-bold text-sm" style={{ color: "var(--black)" }}>{m.label}</span>
                 </div>
-                <span className="text-xs font-medium" style={{ color: "var(--gray)" }}>
-                  {Math.round(m.logs.reduce((a: number, l: any) => a + l.calories * l.quantity, 0))} kcal
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium" style={{ color: "var(--gray)" }}>
+                    {Math.round(m.logs.reduce((a: number, l: any) => a + l.calories * l.quantity, 0))} kcal
+                  </span>
+                  {m.id.startsWith("extra-") && (
+                    <button onClick={() => removeMeal(m.id)} className="p-1 rounded-lg cursor-pointer" style={{ color: "#EF4444" }} title="Remover refeição extra">
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
               {m.logs.length === 0 ? (
                 <p className="text-xs text-center py-3" style={{ color: "var(--gray)" }}>Nenhum alimento registado</p>
@@ -231,6 +245,12 @@ export default function FoodTracker() {
               )}
             </div>
           ))}
+          <button onClick={addMealPrompt}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-2xl text-xs font-semibold cursor-pointer border-2 border-dashed"
+            style={{ borderColor: "var(--gray-lt)", color: "var(--gray)" }}>
+            <Plus size={14} />
+            Adicionar refeição extra (ex: mais um lanche)
+          </button>
         </div>
       )}
 
