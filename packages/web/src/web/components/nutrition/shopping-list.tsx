@@ -203,7 +203,8 @@ export default function ShoppingList() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {filteredCatalog.map((f: any) => {
                 const tags = parseTags(f.tags);
-                const already = namesInList.has(String(f.name).toLowerCase());
+                const inListItem = items.find((i: any) => String(i.name).toLowerCase() === String(f.name).toLowerCase());
+                const already = !!inListItem;
                 return (
                   <div key={f.id} className="rounded-xl p-3 flex items-center gap-2" style={{ background: "var(--cream)" }}>
                     <div className="flex-1 min-w-0">
@@ -219,10 +220,12 @@ export default function ShoppingList() {
                         })}
                       </div>
                     </div>
-                    <button onClick={() => addFromCatalog(f)} disabled={already || addMutation.isPending}
+                    <button
+                      onClick={() => already ? deleteMutation.mutate(inListItem.id) : addFromCatalog(f)}
+                      disabled={addMutation.isPending || deleteMutation.isPending}
                       className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
                       style={already ? { background: "var(--green)", color: "white" } : { background: "var(--orange)", color: "white" }}
-                      title={already ? "Já na lista" : "Adicionar à lista"}>
+                      title={already ? "Remover da lista" : "Adicionar à lista"}>
                       {already ? <Check size={16} /> : <Plus size={16} />}
                     </button>
                   </div>
