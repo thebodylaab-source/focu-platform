@@ -235,7 +235,7 @@ export default function CalorieCalculator() {
 
         {/* Tip */}
         <div className="rounded-2xl p-4" style={{ background: "var(--peach)" }}>
-          <p className="text-xs font-bold mb-1" style={{ color: "var(--orange)" }}>💡 Dica</p>
+          <p className="text-xs font-bold mb-1" style={{ color: "var(--orange)" }}>ℹ️ Nota</p>
           <p className="text-xs" style={{ color: "#666" }}>
             Estes valores são uma estimativa baseada em fórmulas validadas (Mifflin-St Jeor). Monitoriza o teu peso durante 2–3 semanas e ajusta ±100–200 kcal conforme necessário.
           </p>
