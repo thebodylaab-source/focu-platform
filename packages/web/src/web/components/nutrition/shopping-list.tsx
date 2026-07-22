@@ -154,7 +154,7 @@ export default function ShoppingList() {
         </div>
         {checkedCount > 0 && (
           <button
-            onClick={() => clearCheckedMutation.mutate()}
+            onClick={() => { if (confirm(`Remover ${checkedCount} ${checkedCount === 1 ? "item concluído" : "itens concluídos"} da lista?`)) clearCheckedMutation.mutate(); }}
             className="text-xs px-3 py-1.5 rounded-xl cursor-pointer"
             style={{ background: "#EF444415", color: "#EF4444" }}
           >
