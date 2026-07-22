@@ -108,63 +108,65 @@ export default function DashboardPage() {
         });
         const labels = ["S", "T", "Q", "Q", "S", "S", "D"];
         return (
-          <div className="rounded-2xl p-5 shadow-sm" style={{ background: "var(--white)" }}>
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: "var(--peach)" }}>
-                  🔥
+          <Link to="/videos">
+            <div className="rounded-2xl p-5 shadow-sm cursor-pointer transition-all hover:shadow-md" style={{ background: "var(--white)" }}>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: "var(--peach)" }}>
+                    🔥
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black" style={{ color: "var(--black)" }}>
+                      {streak} {streak === 1 ? "dia" : "dias"}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--gray)" }}>de treino seguidos</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-black" style={{ color: "var(--black)" }}>
-                    {streak} {streak === 1 ? "dia" : "dias"}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--gray)" }}>de treino seguidos</p>
-                </div>
-              </div>
-              <div className="flex gap-1.5">
-                {week.map((d, i) => {
-                  const isDone = checkins.has(d);
-                  const isForgiven = !isDone && forgiven.has(d);
-                  return (
-                    <div key={d} className="flex flex-col items-center gap-1">
-                      <span className="text-[9px] font-bold" style={{ color: "var(--gray)" }}>{labels[i]}</span>
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                        style={isDone
-                          ? { background: "var(--orange)", color: "white" }
-                          : isForgiven
-                            ? { background: "#7C3AED20", color: "#7C3AED" }
-                            : d === today
-                              ? { border: "2px dashed var(--orange)", color: "var(--gray)" }
-                              : { background: "var(--cream)", color: "var(--gray)" }}
-                        title={isForgiven ? "Descanso protegido pelo ciclo" : ""}>
-                        {isDone ? "✓" : isForgiven ? "🌙" : ""}
+                <div className="flex gap-1.5">
+                  {week.map((d, i) => {
+                    const isDone = checkins.has(d);
+                    const isForgiven = !isDone && forgiven.has(d);
+                    return (
+                      <div key={d} className="flex flex-col items-center gap-1">
+                        <span className="text-[9px] font-bold" style={{ color: "var(--gray)" }}>{labels[i]}</span>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                          style={isDone
+                            ? { background: "var(--orange)", color: "white" }
+                            : isForgiven
+                              ? { background: "#7C3AED20", color: "#7C3AED" }
+                              : d === today
+                                ? { border: "2px dashed var(--orange)", color: "var(--gray)" }
+                                : { background: "var(--cream)", color: "var(--gray)" }}
+                          title={isForgiven ? "Descanso protegido pelo ciclo" : ""}>
+                          {isDone ? "✓" : isForgiven ? "🌙" : ""}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); checkinToggle.mutate(); }}
+                  disabled={checkinToggle.isPending}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-60"
+                  style={doneToday
+                    ? { background: "#DCFCE7", color: "#16A34A", border: "1.5px solid #16A34A" }
+                    : { background: "var(--orange)", color: "white", border: "1.5px solid var(--orange)" }}
+                >
+                  {doneToday ? <CheckCircle2 size={18} fill="#16A34A" color="white" /> : <Circle size={18} />}
+                  {doneToday ? "Treino feito hoje! ✓" : "Ainda não treinei — marcar"}
+                </button>
               </div>
-              <button
-                onClick={() => checkinToggle.mutate()}
-                disabled={checkinToggle.isPending}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-60"
-                style={doneToday
-                  ? { background: "#DCFCE7", color: "#16A34A", border: "1.5px solid #16A34A" }
-                  : { background: "var(--orange)", color: "white", border: "1.5px solid var(--orange)" }}
-              >
-                {doneToday ? <CheckCircle2 size={18} fill="#16A34A" color="white" /> : <Circle size={18} />}
-                {doneToday ? "Treino feito hoje! ✓" : "Ainda não treinei — marcar"}
-              </button>
+              {/* #1: tirar a culpa nos dias baixos do ciclo */}
+              {restForgivenToday && !doneToday && (
+                <div className="mt-4 pt-4 rounded-xl px-3 py-2.5 flex items-center gap-2" style={{ background: "#7C3AED12", borderTop: "1px solid #7C3AED20" }}>
+                  <span className="text-lg">🌙</span>
+                  <p className="text-xs font-medium" style={{ color: "#7C3AED" }}>
+                    Estás numa fase baixa do ciclo. <strong>Descansar hoje não quebra o teu streak</strong> — o teu corpo agradece.
+                  </p>
+                </div>
+              )}
             </div>
-            {/* #1: tirar a culpa nos dias baixos do ciclo */}
-            {restForgivenToday && !doneToday && (
-              <div className="mt-4 pt-4 rounded-xl px-3 py-2.5 flex items-center gap-2" style={{ background: "#7C3AED12", borderTop: "1px solid #7C3AED20" }}>
-                <span className="text-lg">🌙</span>
-                <p className="text-xs font-medium" style={{ color: "#7C3AED" }}>
-                  Estás numa fase baixa do ciclo. <strong>Descansar hoje não quebra o teu streak</strong> — o teu corpo agradece.
-                </p>
-              </div>
-            )}
-          </div>
+          </Link>
         );
       })()}
 
