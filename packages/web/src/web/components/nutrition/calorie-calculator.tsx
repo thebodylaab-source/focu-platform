@@ -282,9 +282,9 @@ export default function CalorieCalculator() {
               <input
                 type="number" value={f.val} onChange={e => f.set(e.target.value)}
                 min={f.min} max={f.max}
-                placeholder="–"
-                className="w-full text-lg font-black outline-none bg-transparent"
-                style={{ color: "var(--black)" }}
+                placeholder="Escrever"
+                className="w-full text-lg font-black outline-none bg-transparent border-b-2 pb-1"
+                style={{ color: "var(--black)", borderColor: "var(--peach)" }}
               />
               <p className="text-xs" style={{ color: "var(--gray)" }}>{f.unit}</p>
             </div>
