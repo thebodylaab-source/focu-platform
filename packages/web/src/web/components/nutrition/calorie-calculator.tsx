@@ -172,9 +172,9 @@ export default function CalorieCalculator() {
             { label: result.goalDelta >= 0 ? "+" + result.goalDelta : result.goalDelta.toString(), value: result.target, desc: "Objetivo", color: goalObj.color },
           ].map(item => (
             <div key={item.label} className="rounded-2xl p-4 text-center" style={{ background: "var(--white)" }}>
-              <p className="text-xs font-bold mb-1" style={{ color: item.color }}>{item.label}</p>
+              <p className="text-xs font-bold mb-1" style={{ color: item.color }}>{item.desc}</p>
               <p className="text-xl font-black" style={{ color: "var(--black)" }}>{item.value.toLocaleString("pt-PT")}</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--gray)" }}>{item.desc}</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--gray)" }}>{item.label}</p>
             </div>
           ))}
         </div>
