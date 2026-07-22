@@ -341,7 +341,7 @@ export default function CalorieCalculator() {
               className="py-3 rounded-xl text-sm font-bold cursor-pointer transition-all"
               style={sleep === key
                 ? { background: "var(--orange)", color: "white" }
-                : { background: "var(--white)", color: "var(--gray)" }}>
+                : { background: "var(--white)", color: "var(--black)" }}>
               {val.label}
             </button>
           ))}
