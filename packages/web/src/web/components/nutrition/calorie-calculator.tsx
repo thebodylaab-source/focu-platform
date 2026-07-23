@@ -148,7 +148,7 @@ export default function CalorieCalculator() {
         <div className="flex items-center justify-between">
           <h2 className="font-black text-lg" style={{ color: "var(--black)" }}>Os teus resultados</h2>
           <button onClick={reset} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer"
-            style={{ background: "var(--cream)", color: "var(--gray)" }}>
+            style={{ background: goalObj.color + "15", color: goalObj.color }}>
             <RotateCcw size={13} /> Recalcular
           </button>
         </div>
