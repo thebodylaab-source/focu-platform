@@ -583,7 +583,8 @@ export default function Recipes() {
         )}
       </div>
 
-      {/* Search + add */}
+      {/* Search + add + filtros — fixos ao fazer scroll */}
+      <div className="sticky top-0 z-20 space-y-3 pt-2 pb-2 -mt-2" style={{ background: "var(--cream)" }}>
       <div className="flex gap-3">
         <div className="relative flex-1">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--gray)" }} />
@@ -630,6 +631,7 @@ export default function Recipes() {
             <span>{f.emoji}</span>{f.label}
           </button>
         ))}
+      </div>
       </div>
 
       {/* Vista Lista / Descobrir */}

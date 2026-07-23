@@ -12,7 +12,6 @@ const TABS = [
   { id: "rastreador", label: "Rastreador", icon: ListChecks },
   { id: "receitas", label: "Receitas", icon: ChefHat },
   { id: "compras", label: "Lista de Compras", icon: ShoppingCart },
-  { id: "calculador", label: "Calculador", icon: Calculator },
 ];
 
 export default function NutricaoPage() {
@@ -51,8 +50,27 @@ export default function NutricaoPage() {
 
       {/* Tab content */}
       <div className="fade-up">
-        {tab === "calculador" && <CalorieCalculator />}
-        {tab === "calorias" && <CalorieCounter />}
+        {tab === "calculador" && (
+          <div className="space-y-4">
+            <button onClick={() => setTab("calorias")}
+              className="text-xs font-semibold cursor-pointer underline"
+              style={{ color: "var(--gray)" }}>
+              ← Voltar ao Contador
+            </button>
+            <CalorieCalculator />
+          </div>
+        )}
+        {tab === "calorias" && (
+          <div className="space-y-4">
+            <CalorieCounter />
+            <button onClick={() => setTab("calculador")}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm cursor-pointer border-2 transition-all hover:shadow-sm"
+              style={{ background: "var(--white)", borderColor: "var(--orange)", color: "var(--orange)" }}>
+              <Calculator size={16} />
+              Calcular as minhas calorias
+            </button>
+          </div>
+        )}
         {tab === "rastreador" && <FoodTracker />}
         {tab === "receitas" && <Recipes />}
         {tab === "compras" && <ShoppingList />}
