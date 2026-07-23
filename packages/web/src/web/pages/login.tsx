@@ -342,6 +342,11 @@ export default function LoginPage() {
           <p className="text-center text-xs mt-2" style={{ color: "var(--gray)" }}>
             By The Body Lab — todos os direitos reservados
           </p>
+          <p className="text-center text-xs mt-1.5">
+            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--gray)" }}>
+              Política de Privacidade
+            </a>
+          </p>
           </>
           )}
         </div>

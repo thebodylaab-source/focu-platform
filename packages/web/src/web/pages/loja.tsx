@@ -183,6 +183,12 @@ export default function LojaPage() {
               Dúvidas? Fala connosco no WhatsApp
             </a>
           </div>
+
+          <p className="text-center text-xs mt-6">
+            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--gray)" }}>
+              Política de Privacidade
+            </a>
+          </p>
         </div>
       </section>
     </div>

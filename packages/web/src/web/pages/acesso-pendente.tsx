@@ -111,6 +111,11 @@ export default function AcessoPendentePage() {
         Já pagaste e continua a aparecer esta página?{" "}
         <a href="mailto:thebodylaab@gmail.com" className="underline">Contacta-nos</a>
       </p>
+      <p className="text-xs mt-2">
+        <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--gray)" }}>
+          Política de Privacidade
+        </a>
+      </p>
     </div>
   );
 }
