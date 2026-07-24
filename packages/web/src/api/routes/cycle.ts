@@ -94,8 +94,11 @@ export const cycleRoute = new Hono()
     const context = Array.isArray(body.context)
       ? body.context.filter((s: any) => allowedContext.includes(s))
       : undefined;
-    const hungerEmotional = ["sim", "nao"].includes(body.hungerEmotional) ? body.hungerEmotional : undefined;
-    const hungerControl = ["descontrolo", "controlo"].includes(body.hungerControl) ? body.hungerControl : undefined;
+    // null explícito limpa a resposta (desmarcar); valor inválido é ignorado.
+    const hungerEmotional = body.hungerEmotional === null ? null
+      : ["sim", "nao"].includes(body.hungerEmotional) ? body.hungerEmotional : undefined;
+    const hungerControl = body.hungerControl === null ? null
+      : ["descontrolo", "controlo"].includes(body.hungerControl) ? body.hungerControl : undefined;
     if (feeling === undefined && symptoms === undefined && context === undefined && hungerEmotional === undefined && hungerControl === undefined) {
       return c.json({ message: "Nada para registar." }, 400);
     }

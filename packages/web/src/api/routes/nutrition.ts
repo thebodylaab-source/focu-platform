@@ -166,9 +166,12 @@ export const nutritionRoute = new Hono()
     return c.json({ ok: true }, 200);
   })
   .delete("/shopping", requireAuth, async (c) => {
-    // clear all checked items
+    // ?all=true limpa a lista inteira; sem query limpa só os concluídos
     const user = c.get("user")!;
+    const all = c.req.query("all") === "true";
     await db.delete(schema.shoppingList)
-      .where(and(eq(schema.shoppingList.userId, user.id), eq(schema.shoppingList.checked, true)));
+      .where(all
+        ? eq(schema.shoppingList.userId, user.id)
+        : and(eq(schema.shoppingList.userId, user.id), eq(schema.shoppingList.checked, true)));
     return c.json({ ok: true }, 200);
   });
