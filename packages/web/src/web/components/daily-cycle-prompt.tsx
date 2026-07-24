@@ -95,7 +95,7 @@ export function DailyCyclePrompt() {
   });
 
   const saveHunger = useMutation({
-    mutationFn: async (patch: { hungerEmotional?: string; hungerControl?: string }) => {
+    mutationFn: async (patch: { hungerEmotional?: string | null; hungerControl?: string | null }) => {
       const res = await fetch("/api/cycle/checkin", { method: "POST", headers: authHeaders(), body: JSON.stringify(patch) });
       return res.json();
     },
@@ -196,9 +196,11 @@ export function DailyCyclePrompt() {
             const next = selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id];
             saveSymptoms.mutate(next);
           };
-          const VISIBLE = 8;
-          // Mostra os primeiros 8 + os que já estão selecionados (para não sumirem).
-          const shown = showAllSymptoms ? SYMPTOMS : SYMPTOMS.filter((s, i) => i < VISIBLE || selected.includes(s.id));
+          // Mostra uma mistura de negativos e positivos + os já selecionados (para não sumirem).
+          const negatives = SYMPTOMS.filter(s => !s.positive);
+          const positives = SYMPTOMS.filter(s => s.positive);
+          const defaultVisible = new Set([...negatives.slice(0, 5), ...positives.slice(0, 5)].map(s => s.id));
+          const shown = showAllSymptoms ? SYMPTOMS : SYMPTOMS.filter(s => defaultVisible.has(s.id) || selected.includes(s.id));
           const hidden = SYMPTOMS.length - shown.length;
           return (
             <div className="mt-3">
@@ -268,7 +270,7 @@ export function DailyCyclePrompt() {
 
 function HungerRow({ label, value, options, color, disabled, onPick }: {
   label: string; value: string | null; color: string; disabled: boolean;
-  options: { id: string; emoji: string; label: string }[]; onPick: (v: string) => void;
+  options: { id: string; emoji: string; label: string }[]; onPick: (v: string | null) => void;
 }) {
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -277,7 +279,7 @@ function HungerRow({ label, value, options, color, disabled, onPick }: {
         {options.map(o => {
           const on = value === o.id;
           return (
-            <button key={o.id} onClick={() => onPick(o.id)} disabled={disabled}
+            <button key={o.id} onClick={() => onPick(on ? null : o.id)} disabled={disabled}
               className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all disabled:opacity-50"
               style={on ? { background: color, color: "white" } : { background: "var(--white)", color: "var(--gray)" }}>
               <span>{o.emoji}</span> {o.label}

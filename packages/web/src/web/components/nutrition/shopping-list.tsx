@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useState } from "react";
 import { Plus, Trash2, ShoppingCart, Check, X, ChevronDown } from "lucide-react";
+import { getToken } from "../../lib/auth";
 
 const CATEGORIES = [
   { id: "frutas", label: "Frutas", emoji: "🍎" },
@@ -96,6 +97,17 @@ export default function ShoppingList() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping-list"] }),
   });
 
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/nutrition/shopping?all=true", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping-list"] }),
+  });
+
   const checkedCount = items.filter((i: any) => i.checked).length;
   const uncheckedItems = items.filter((i: any) => !i.checked);
   const checkedItems = items.filter((i: any) => i.checked);
@@ -152,15 +164,26 @@ export default function ShoppingList() {
             {checkedCount > 0 && <span style={{ color: "var(--gray)" }}> · {checkedCount} concluídos</span>}
           </span>
         </div>
-        {checkedCount > 0 && (
-          <button
-            onClick={() => { if (confirm(`Remover ${checkedCount} ${checkedCount === 1 ? "item concluído" : "itens concluídos"} da lista?`)) clearCheckedMutation.mutate(); }}
-            className="text-xs px-3 py-1.5 rounded-xl cursor-pointer"
-            style={{ background: "#EF444415", color: "#EF4444" }}
-          >
-            Limpar concluídos
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {checkedCount > 0 && (
+            <button
+              onClick={() => { if (confirm(`Remover ${checkedCount} ${checkedCount === 1 ? "item concluído" : "itens concluídos"} da lista?`)) clearCheckedMutation.mutate(); }}
+              className="text-xs px-3 py-1.5 rounded-xl cursor-pointer"
+              style={{ background: "#EF444415", color: "#EF4444" }}
+            >
+              Limpar concluídos
+            </button>
+          )}
+          {items.length > 0 && (
+            <button
+              onClick={() => { if (confirm(`Apagar a lista inteira (${items.length} ${items.length === 1 ? "item" : "itens"})? Esta ação não pode ser desfeita.`)) clearAllMutation.mutate(); }}
+              className="text-xs px-3 py-1.5 rounded-xl cursor-pointer font-semibold"
+              style={{ background: "#EF4444", color: "white" }}
+            >
+              Limpar tudo
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add button */}
