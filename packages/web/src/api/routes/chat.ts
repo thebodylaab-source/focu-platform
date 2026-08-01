@@ -3,7 +3,7 @@ import { db } from "../database";
 import * as schema from "../database/schema";
 import { user } from "../database/auth-schema";
 import { and, eq, gt, desc, asc, like, inArray, ne } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middleware/auth";
+import { requireMember, requireAdmin } from "../middleware/auth";
 import { publish, publishDm } from "../chat/hub";
 
 const MAX = 1000;
@@ -36,11 +36,11 @@ async function insertMessage(room: string, sender: { id: string; name: string | 
 
 export const chatRoute = new Hono()
   // --- Comunidade ---
-  .get("/community", requireAuth, async (c) => {
+  .get("/community", requireMember, async (c) => {
     const after = parseInt(c.req.query("after") ?? "");
     return c.json({ messages: await messagesOf("community", after) }, 200);
   })
-  .post("/community", requireAuth, async (c) => {
+  .post("/community", requireMember, async (c) => {
     const u = c.get("user")!;
     const body = clean((await c.req.json()).body);
     if (!body) return c.json({ message: "Mensagem inválida (1–1000 caracteres)." }, 400);
@@ -54,12 +54,12 @@ export const chatRoute = new Hono()
     return c.json({ message: msg }, 201);
   })
   // --- Conversa privada da aluna com a treinadora ---
-  .get("/dm", requireAuth, async (c) => {
+  .get("/dm", requireMember, async (c) => {
     const u = c.get("user")!;
     const after = parseInt(c.req.query("after") ?? "");
     return c.json({ messages: await messagesOf(`dm:${u.id}`, after) }, 200);
   })
-  .post("/dm", requireAuth, async (c) => {
+  .post("/dm", requireMember, async (c) => {
     const u = c.get("user")!;
     const body = clean((await c.req.json()).body);
     if (!body) return c.json({ message: "Mensagem inválida." }, 400);
