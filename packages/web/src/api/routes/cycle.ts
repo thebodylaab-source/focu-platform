@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import { eq, and, gte, asc, desc, isNull } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
+import { requireMember } from "../middleware/auth";
 import { computePhase, averageCycleAndPeriodLengths, type CycleSettings, type PhaseId } from "../../shared/cycle-core";
 
 const isDate = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -45,13 +45,13 @@ async function computeHistoryAverages(userId: string) {
 }
 
 export const cycleRoute = new Hono()
-  .get("/", requireAuth, async (c) => {
+  .get("/", requireMember, async (c) => {
     const user = c.get("user")!;
     const [row] = await db.select().from(schema.cycleTracking).where(eq(schema.cycleTracking.userId, user.id));
     const history = await computeHistoryAverages(user.id);
     return c.json({ cycle: row ?? null, history }, 200);
   })
-  .post("/", requireAuth, async (c) => {
+  .post("/", requireMember, async (c) => {
     const user = c.get("user")!;
     const parsed = clean(await c.req.json());
     if (typeof parsed === "string") return c.json({ message: parsed }, 400);
@@ -69,14 +69,14 @@ export const cycleRoute = new Hono()
     return c.json({ cycle: row }, 200);
   })
   // Check-in de hoje (como se sente) — null se ainda não registou hoje.
-  .get("/checkin", requireAuth, async (c) => {
+  .get("/checkin", requireMember, async (c) => {
     const user = c.get("user")!;
     const [row] = await db.select().from(schema.cycleCheckins)
       .where(and(eq(schema.cycleCheckins.userId, user.id), eq(schema.cycleCheckins.checkinDate, today())));
     return c.json({ checkin: row ?? null }, 200);
   })
   // Regista/atualiza o check-in de hoje (estado e/ou sintomas).
-  .post("/checkin", requireAuth, async (c) => {
+  .post("/checkin", requireMember, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
     const allowedFeelings = ["otima", "bem", "media", "sem-energia"];
@@ -129,7 +129,7 @@ export const cycleRoute = new Hono()
     return c.json({ checkin: row }, 201);
   })
   // Padrões: agrega os check-ins por fase para mostrar tendências à aluna.
-  .get("/insights", requireAuth, async (c) => {
+  .get("/insights", requireMember, async (c) => {
     const user = c.get("user")!;
     const [cycleRow] = await db.select().from(schema.cycleTracking).where(eq(schema.cycleTracking.userId, user.id));
     if (!cycleRow) return c.json({ insights: null }, 200);
@@ -222,7 +222,7 @@ export const cycleRoute = new Hono()
   })
   // Atalho: "o período começou hoje" — abre um novo ciclo no histórico e
   // recalcula a média da duração do ciclo a partir dos ciclos anteriores.
-  .post("/period-started", requireAuth, async (c) => {
+  .post("/period-started", requireMember, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json().catch(() => ({}));
     const date = isDate(body.date) && body.date <= today() ? body.date : today();
@@ -251,7 +251,7 @@ export const cycleRoute = new Hono()
   })
   // Atalho: "o período acabou hoje" — fecha o ciclo em aberto no histórico
   // com a data de hoje e recalcula a média da duração da menstruação.
-  .post("/period-ended", requireAuth, async (c) => {
+  .post("/period-ended", requireMember, async (c) => {
     const user = c.get("user")!;
     const [existing] = await db.select().from(schema.cycleTracking).where(eq(schema.cycleTracking.userId, user.id));
     if (!existing) return c.json({ message: "Ainda não configuraste o teu ciclo." }, 400);

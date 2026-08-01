@@ -2,14 +2,14 @@ import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import { eq, and, gte, desc } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
+import { requireMember } from "../middleware/auth";
 import { isRestForgiven, type CycleSettings } from "../../shared/cycle-core";
 
 const dayStr = (d: Date) => d.toISOString().split("T")[0];
 
 export const progressRoute = new Hono()
   // GET /api/progress — check-ins recentes + streak atual (respeita o período)
-  .get("/", requireAuth, async (c) => {
+  .get("/", requireMember, async (c) => {
     const user = c.get("user")!;
     const since = new Date();
     since.setDate(since.getDate() - 60);
@@ -51,7 +51,7 @@ export const progressRoute = new Hono()
     return c.json({ checkins: rows.map((r) => r.checkinDate), streak, restForgivenToday, forgivenDays }, 200);
   })
   // POST /api/progress/checkin — marca (ou desmarca) o treino de hoje
-  .post("/checkin", requireAuth, async (c) => {
+  .post("/checkin", requireMember, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json().catch(() => ({}));
     const date = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : dayStr(new Date());

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import { eq, and, like, or, gte, lte } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
+import { requireMember } from "../middleware/auth";
 
 // Valida um alimento antes de entrar na base (pessoal ou global).
 // Evita dados absurdos que envenenam as contagens de toda a gente.
@@ -20,12 +20,12 @@ function validateFood(body: any): string | null {
 
 export const nutritionRoute = new Hono()
   // --- Calorie Goal ---
-  .get("/goal", requireAuth, async (c) => {
+  .get("/goal", requireMember, async (c) => {
     const user = c.get("user")!;
     const [goal] = await db.select().from(schema.calorieGoals).where(eq(schema.calorieGoals.userId, user.id));
     return c.json({ goal: goal ?? null }, 200);
   })
-  .post("/goal", requireAuth, async (c) => {
+  .post("/goal", requireMember, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
     const existing = await db.select().from(schema.calorieGoals).where(eq(schema.calorieGoals.userId, user.id));
@@ -41,7 +41,7 @@ export const nutritionRoute = new Hono()
     }
   })
   // --- Food Log ---
-  .get("/logs", requireAuth, async (c) => {
+  .get("/logs", requireMember, async (c) => {
     const user = c.get("user")!;
     const date = c.req.query("date") ?? new Date().toISOString().split("T")[0];
     const logs = await db.select().from(schema.foodLogs)
@@ -49,7 +49,7 @@ export const nutritionRoute = new Hono()
     return c.json({ logs }, 200);
   })
   // Logs num intervalo de datas (máx. 31 dias) — usado pelo relatório semanal
-  .get("/logs/range", requireAuth, async (c) => {
+  .get("/logs/range", requireMember, async (c) => {
     const user = c.get("user")!;
     const from = c.req.query("from") ?? "";
     const to = c.req.query("to") ?? "";
@@ -65,25 +65,25 @@ export const nutritionRoute = new Hono()
       ));
     return c.json({ logs }, 200);
   })
-  .post("/logs", requireAuth, async (c) => {
+  .post("/logs", requireMember, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
     const [log] = await db.insert(schema.foodLogs).values({ userId: user.id, ...body }).returning();
     return c.json({ log }, 201);
   })
-  .delete("/logs/:id", requireAuth, async (c) => {
+  .delete("/logs/:id", requireMember, async (c) => {
     const user = c.get("user")!;
     const id = parseInt(c.req.param("id"));
     await db.delete(schema.foodLogs).where(and(eq(schema.foodLogs.id, id), eq(schema.foodLogs.userId, user.id)));
     return c.json({ ok: true }, 200);
   })
   // --- Custom Food Items ---
-  .get("/foods", requireAuth, async (c) => {
+  .get("/foods", requireMember, async (c) => {
     const user = c.get("user")!;
     const foods = await db.select().from(schema.foodItems).where(eq(schema.foodItems.userId, user.id));
     return c.json({ foods }, 200);
   })
-  .post("/foods", requireAuth, async (c) => {
+  .post("/foods", requireMember, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
     const invalid = validateFood(body);
@@ -91,14 +91,14 @@ export const nutritionRoute = new Hono()
     const [food] = await db.insert(schema.foodItems).values({ userId: user.id, ...body }).returning();
     return c.json({ food }, 201);
   })
-  .delete("/foods/:id", requireAuth, async (c) => {
+  .delete("/foods/:id", requireMember, async (c) => {
     const user = c.get("user")!;
     const id = parseInt(c.req.param("id"));
     await db.delete(schema.foodItems).where(and(eq(schema.foodItems.id, id), eq(schema.foodItems.userId, user.id)));
     return c.json({ ok: true }, 200);
   })
   // --- Global Foods (shared DB) ---
-  .get("/global-foods", requireAuth, async (c) => {
+  .get("/global-foods", requireMember, async (c) => {
     const search = c.req.query("q") ?? "";
     let foods;
     if (search.length > 1) {
@@ -109,7 +109,7 @@ export const nutritionRoute = new Hono()
     }
     return c.json({ foods }, 200);
   })
-  .post("/global-foods", requireAuth, async (c) => {
+  .post("/global-foods", requireMember, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
     const invalid = validateFood(body);
@@ -125,7 +125,7 @@ export const nutritionRoute = new Hono()
       return c.json({ food: null }, 200);
     }
   })
-  .delete("/global-foods/:id", requireAuth, async (c) => {
+  .delete("/global-foods/:id", requireMember, async (c) => {
     const user = c.get("user")!;
     const id = parseInt(c.req.param("id"));
     await db.delete(schema.globalFoods).where(
@@ -134,13 +134,13 @@ export const nutritionRoute = new Hono()
     return c.json({ ok: true }, 200);
   })
   // --- Shopping List ---
-  .get("/shopping", requireAuth, async (c) => {
+  .get("/shopping", requireMember, async (c) => {
     const user = c.get("user")!;
     const items = await db.select().from(schema.shoppingList)
       .where(eq(schema.shoppingList.userId, user.id));
     return c.json({ items }, 200);
   })
-  .post("/shopping", requireAuth, async (c) => {
+  .post("/shopping", requireMember, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
     const [item] = await db.insert(schema.shoppingList)
@@ -148,7 +148,7 @@ export const nutritionRoute = new Hono()
       .returning();
     return c.json({ item }, 201);
   })
-  .patch("/shopping/:id", requireAuth, async (c) => {
+  .patch("/shopping/:id", requireMember, async (c) => {
     const user = c.get("user")!;
     const id = parseInt(c.req.param("id"));
     const body = await c.req.json();
@@ -158,14 +158,14 @@ export const nutritionRoute = new Hono()
       .returning();
     return c.json({ item }, 200);
   })
-  .delete("/shopping/:id", requireAuth, async (c) => {
+  .delete("/shopping/:id", requireMember, async (c) => {
     const user = c.get("user")!;
     const id = parseInt(c.req.param("id"));
     await db.delete(schema.shoppingList)
       .where(and(eq(schema.shoppingList.id, id), eq(schema.shoppingList.userId, user.id)));
     return c.json({ ok: true }, 200);
   })
-  .delete("/shopping", requireAuth, async (c) => {
+  .delete("/shopping", requireMember, async (c) => {
     // ?all=true limpa a lista inteira; sem query limpa só os concluídos
     const user = c.get("user")!;
     const all = c.req.query("all") === "true";

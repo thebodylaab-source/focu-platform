@@ -2,11 +2,11 @@ import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import { eq, and } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
+import { requireMember } from "../middleware/auth";
 
 export const favoritesRoute = new Hono()
   // GET /api/favorites?kind=video|recipe — favoritos do utilizador
-  .get("/", requireAuth, async (c) => {
+  .get("/", requireMember, async (c) => {
     const user = c.get("user")!;
     const kind = c.req.query("kind");
     const where = kind
@@ -16,7 +16,7 @@ export const favoritesRoute = new Hono()
     return c.json({ favorites: favs }, 200);
   })
   // POST /api/favorites/toggle — alterna favorito (devolve o estado final)
-  .post("/toggle", requireAuth, async (c) => {
+  .post("/toggle", requireMember, async (c) => {
     const user = c.get("user")!;
     const { kind, refId } = await c.req.json<{ kind: string; refId: number }>();
     if (!["video", "recipe"].includes(kind) || !Number.isInteger(refId)) {
