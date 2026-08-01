@@ -3,10 +3,7 @@ import { db } from "../database";
 import * as schema from "../database/schema";
 import { user } from "../database/auth-schema";
 import { eq, like, or, desc, sql, gte } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
-
-// Middleware: admin only
-const requireAdmin = requireAuth; // role check is inside
+import { requireAdmin } from "../middleware/auth";
 
 export const adminRoute = new Hono()
   // GET /api/admin/users — list users (pesquisa + paginação)

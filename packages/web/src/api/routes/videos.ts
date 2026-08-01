@@ -2,10 +2,10 @@ import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import { eq, asc } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middleware/auth";
+import { requireMember, requireAdmin } from "../middleware/auth";
 
 export const videosRoute = new Hono()
-  .get("/", requireAuth, async (c) => {
+  .get("/", requireMember, async (c) => {
     const rows = await db.select().from(schema.videos).orderBy(asc(schema.videos.order));
     return c.json({ videos: rows }, 200);
   })

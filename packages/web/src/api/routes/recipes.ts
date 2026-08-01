@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
 import { eq, and, sql, isNull, isNotNull, ne, or } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth";
+import { requireMember } from "../middleware/auth";
 import Anthropic from "@anthropic-ai/sdk";
 
 // IA ligada diretamente à chave Anthropic (independente de qualquer gateway).
@@ -58,7 +58,7 @@ function extractJson(raw: string): any | null {
 }
 
 export const recipesRoute = new Hono()
-  .get("/", requireAuth, async (c) => {
+  .get("/", requireMember, async (c) => {
     const user = c.get("user")!;
     // Cada aluna vê as receitas do programa (owner NULL) + as suas próprias.
     // Admin vê tudo.
@@ -69,13 +69,13 @@ export const recipesRoute = new Hono()
     return c.json({ recipes: rows }, 200);
   })
   // Receitas feitas por OUTRAS alunas (comunidade) — para partilha de ideias.
-  .get("/community", requireAuth, async (c) => {
+  .get("/community", requireMember, async (c) => {
     const user = c.get("user")!;
     const rows = await db.select().from(schema.recipes)
       .where(and(isNotNull(schema.recipes.ownerId), ne(schema.recipes.ownerId, user.id)));
     return c.json({ recipes: rows }, 200);
   })
-  .post("/", requireAuth, async (c) => {
+  .post("/", requireMember, async (c) => {
     const user = c.get("user")!;
     const body = await c.req.json();
     if (!body.title || typeof body.title !== "string" || !body.title.trim()) {
@@ -98,7 +98,7 @@ export const recipesRoute = new Hono()
     }).returning();
     return c.json({ recipe }, 201);
   })
-  .post("/generate", requireAuth, async (c) => {
+  .post("/generate", requireMember, async (c) => {
     const user = c.get("user")!;
     const isAdmin = user.role === "admin";
     // Reserva o dia ANTES de qualquer trabalho (à prova de concorrência).
@@ -157,7 +157,7 @@ Usa português de Portugal.`;
       return c.json({ error: e.message || "Erro interno" }, 500);
     }
   })
-  .delete("/:id", requireAuth, async (c) => {
+  .delete("/:id", requireMember, async (c) => {
     const user = c.get("user")!;
     const id = parseInt(c.req.param("id"));
     const [recipe] = await db.select().from(schema.recipes).where(eq(schema.recipes.id, id));
