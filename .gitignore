@@ -10,3 +10,6 @@ ios/
 !.env.example
 pm2.log
 *.log
+
+# Backups locais da base de dados (contêm dados pessoais)
+/backups/
