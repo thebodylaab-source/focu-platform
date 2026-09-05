@@ -91,7 +91,7 @@ export default function PlanoPage() {
                           )}
                         </div>
                         {ex.videoId != null && (
-                          <Link to={`/videos`}>
+                          <Link to={`/videos?v=${ex.videoId}`}>
                             <button className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer shrink-0" style={{ background: "var(--peach)", color: "var(--orange)" }}>
                               <PlayCircle size={14} /> Vídeo
                             </button>

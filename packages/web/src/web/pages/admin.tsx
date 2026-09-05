@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getToken } from "../lib/auth";
 import { Shield, Users, CheckCircle, Clock, Crown, Search, History, ChevronLeft, ChevronRight, BarChart3, Send, Bell, Dumbbell } from "lucide-react";
 import { TrainingPlanEditor } from "../components/training-plan-editor";
+import { ManualAccessSection } from "../components/manual-access-section";
 
 const ROLE_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   admin: { label: "Admin", color: "#7C3AED", icon: <Crown size={14} /> },
@@ -275,6 +276,9 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* Acesso manual (pagamentos fora da plataforma) */}
+      <ManualAccessSection />
 
       {/* Users table */}
       <div className="rounded-2xl shadow-sm overflow-hidden" style={{ background: "var(--white)" }}>

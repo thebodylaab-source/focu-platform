@@ -4,6 +4,7 @@ import * as schema from "../database/schema";
 import { user } from "../database/auth-schema";
 import { eq, like, or, desc, sql, gte } from "drizzle-orm";
 import { requireAdmin } from "../middleware/auth";
+import { extendOneTime } from "../lib/access";
 
 export const adminRoute = new Hono()
   // GET /api/admin/users — list users (pesquisa + paginação)
@@ -122,4 +123,80 @@ export const adminRoute = new Hono()
       action: `role: ${before.role} → ${role}`,
     });
     return c.json({ user: updated });
+  })
+  // GET /api/admin/paid-emails — acessos concedidos (inclui pagamentos fora da plataforma)
+  .get("/paid-emails", requireAdmin, async (c) => {
+    const me = c.get("user")!;
+    if (me.role !== "admin") return c.json({ error: "Forbidden" }, 403);
+    const rows = await db.select().from(schema.paidCustomers).orderBy(desc(schema.paidCustomers.paidAt));
+    // Junta o estado da conta (se existe e o role atual) por email.
+    const emails = rows.map((r) => r.email);
+    const accounts = emails.length
+      ? await db.select({ email: user.email, role: user.role }).from(user)
+      : [];
+    const roleByEmail = new Map(accounts.map((a) => [a.email.trim().toLowerCase(), a.role]));
+    const customers = rows.map((r) => ({
+      email: r.email,
+      plan: r.plan,
+      paidAt: r.paidAt,
+      expiresAt: r.expiresAt,
+      accountRole: roleByEmail.get(r.email.trim().toLowerCase()) ?? null, // null = ainda sem conta
+    }));
+    return c.json({ customers });
+  })
+  // POST /api/admin/paid-emails — autoriza um email (pagamento fora da plataforma)
+  .post("/paid-emails", requireAdmin, async (c) => {
+    const me = c.get("user")!;
+    if (me.role !== "admin") return c.json({ error: "Forbidden" }, 403);
+    const body = await c.req.json<{ email?: string; duration?: string }>().catch(() => ({}));
+    const email = (body?.email ?? "").trim().toLowerCase();
+    if (!email || !email.includes("@")) return c.json({ error: "Email inválido" }, 400);
+    const now = new Date();
+    const lifetime = body?.duration === "lifetime";
+    const expiresAt = lifetime ? null : extendOneTime(now, null); // 1 mês por defeito
+
+    const [existing] = await db.select().from(schema.paidCustomers).where(eq(schema.paidCustomers.email, email));
+    if (existing) {
+      await db.update(schema.paidCustomers).set({ plan: "manual", paidAt: now, expiresAt }).where(eq(schema.paidCustomers.email, email));
+    } else {
+      await db.insert(schema.paidCustomers).values({ email, plan: "manual", paidAt: now, expiresAt });
+    }
+
+    // Se já existe uma conta com este email e está pendente, ativa-a já.
+    const [u] = await db.select().from(user).where(eq(user.email, email));
+    let promoted = false;
+    if (u && u.role === "pending") {
+      await db.update(user).set({ role: "member" }).where(eq(user.id, u.id));
+      promoted = true;
+    }
+    await db.insert(schema.adminAuditLog).values({
+      adminId: me.id,
+      adminName: me.name ?? me.email,
+      targetUserId: u?.id ?? "-",
+      targetEmail: email,
+      action: `acesso manual concedido (${lifetime ? "vitalício" : "1 mês"})${promoted ? " + ativado" : u ? "" : " (ainda sem conta)"}`,
+    });
+    return c.json({ ok: true, promoted, hasAccount: !!u });
+  })
+  // DELETE /api/admin/paid-emails/:email — revoga o acesso de um email
+  .delete("/paid-emails/:email", requireAdmin, async (c) => {
+    const me = c.get("user")!;
+    if (me.role !== "admin") return c.json({ error: "Forbidden" }, 403);
+    const email = decodeURIComponent(c.req.param("email")).trim().toLowerCase();
+    await db.delete(schema.paidCustomers).where(eq(schema.paidCustomers.email, email));
+    // Se há uma conta membro com este email (nunca admin), volta a pendente.
+    const [u] = await db.select().from(user).where(eq(user.email, email));
+    let downgraded = false;
+    if (u && u.role === "member") {
+      await db.update(user).set({ role: "pending" }).where(eq(user.id, u.id));
+      downgraded = true;
+    }
+    await db.insert(schema.adminAuditLog).values({
+      adminId: me.id,
+      adminName: me.name ?? me.email,
+      targetUserId: u?.id ?? "-",
+      targetEmail: email,
+      action: `acesso revogado${downgraded ? " + despromovido a pendente" : ""}`,
+    });
+    return c.json({ ok: true, downgraded });
   });
