@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getToken } from "../lib/auth";
-import { Shield, Users, CheckCircle, Clock, Crown, Search, History, ChevronLeft, ChevronRight, BarChart3, Send, Bell, Dumbbell } from "lucide-react";
+import { Shield, Users, CheckCircle, Clock, Crown, Search, History, ChevronLeft, ChevronRight, BarChart3, Send, Bell, Dumbbell, Trash2 } from "lucide-react";
 import { TrainingPlanEditor } from "../components/training-plan-editor";
 import { ManualAccessSection } from "../components/manual-access-section";
 
@@ -24,6 +24,7 @@ export default function AdminPage() {
   const [broadcast, setBroadcast] = useState({ title: "", body: "" });
   const [broadcastState, setBroadcastState] = useState<"idle" | "sending" | string>("idle");
   const [planUser, setPlanUser] = useState<{ id: string; name: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; email: string } | null>(null);
 
   const { data: metricsData } = useQuery({
     queryKey: ["admin-metrics"],
@@ -106,6 +107,25 @@ export default function AdminPage() {
       qc.invalidateQueries({ queryKey: ["admin-users"] });
       qc.invalidateQueries({ queryKey: ["admin-stats"] });
       qc.invalidateQueries({ queryKey: ["admin-audit"] });
+    },
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE", headers: authHeaders() });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any)?.error || "Failed");
+      }
+      return res.json();
+    },
+    onMutate: (id) => setLoadingId(id),
+    onSettled: () => {
+      setLoadingId(null);
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
+      qc.invalidateQueries({ queryKey: ["admin-audit"] });
+      qc.invalidateQueries({ queryKey: ["paid-emails"] });
     },
   });
 
@@ -371,6 +391,17 @@ export default function AdminPage() {
                         Suspender
                       </button>
                     )}
+                    {u.role !== "admin" && (
+                      <button
+                        disabled={loadingId === u.id}
+                        onClick={() => setConfirmDelete({ id: u.id, name: u.name, email: u.email })}
+                        className="p-1.5 rounded-xl cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-40"
+                        style={{ color: "#EF4444" }}
+                        title="Apagar conta"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -433,6 +464,40 @@ export default function AdminPage() {
       {/* Editor de plano de treino */}
       {planUser && (
         <TrainingPlanEditor userId={planUser.id} userName={planUser.name} onClose={() => setPlanUser(null)} />
+      )}
+
+      {/* Confirmação de apagar conta */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style={{ background: "var(--white)" }}>
+            <div className="flex items-center gap-2 mb-2">
+              <Trash2 size={20} style={{ color: "#EF4444" }} />
+              <h3 className="text-lg font-black" style={{ color: "var(--black)" }}>Apagar conta?</h3>
+            </div>
+            <p className="text-sm mb-2" style={{ color: "var(--gray)" }}>
+              Vais apagar <strong>{confirmDelete.name}</strong> ({confirmDelete.email}) e <strong>todos os dados dela</strong> (registos, ciclo, plano, receitas…).
+            </p>
+            <p className="text-xs mb-6 font-semibold" style={{ color: "#EF4444" }}>
+              Esta ação é irreversível.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold cursor-pointer border"
+                style={{ borderColor: "var(--gray-lt)", color: "var(--gray)" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { deleteUser.mutate(confirmDelete.id); setConfirmDelete(null); }}
+                className="flex-1 py-3 rounded-xl text-sm font-bold text-white cursor-pointer"
+                style={{ background: "#EF4444" }}
+              >
+                Apagar definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

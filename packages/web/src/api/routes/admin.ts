@@ -199,4 +199,47 @@ export const adminRoute = new Hono()
       action: `acesso revogado${downgraded ? " + despromovido a pendente" : ""}`,
     });
     return c.json({ ok: true, downgraded });
+  })
+  // DELETE /api/admin/users/:id — apaga por completo a conta de uma aluna (RGPD)
+  .delete("/users/:id", requireAdmin, async (c) => {
+    const me = c.get("user")!;
+    if (me.role !== "admin") return c.json({ error: "Forbidden" }, 403);
+    const { id } = c.req.param();
+    if (id === me.id) return c.json({ error: "Não podes apagar a tua própria conta." }, 400);
+    const [target] = await db.select().from(user).where(eq(user.id, id));
+    if (!target) return c.json({ error: "Utilizador não encontrado" }, 404);
+    if (target.role === "admin") return c.json({ error: "Não é possível apagar uma conta de admin." }, 400);
+    const email = target.email.trim().toLowerCase();
+
+    // Apaga os dados pessoais da aluna em todas as tabelas (sem cascata).
+    await Promise.all([
+      db.delete(schema.foodItems).where(eq(schema.foodItems.userId, id)),
+      db.delete(schema.foodLogs).where(eq(schema.foodLogs.userId, id)),
+      db.delete(schema.calorieGoals).where(eq(schema.calorieGoals.userId, id)),
+      db.delete(schema.shoppingList).where(eq(schema.shoppingList.userId, id)),
+      db.delete(schema.cycleTracking).where(eq(schema.cycleTracking.userId, id)),
+      db.delete(schema.cyclePeriods).where(eq(schema.cyclePeriods.userId, id)),
+      db.delete(schema.cycleCheckins).where(eq(schema.cycleCheckins.userId, id)),
+      db.delete(schema.aiGenerations).where(eq(schema.aiGenerations.userId, id)),
+      db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, id)),
+      db.delete(schema.workoutCheckins).where(eq(schema.workoutCheckins.userId, id)),
+      db.delete(schema.favorites).where(eq(schema.favorites.userId, id)),
+      db.delete(schema.memberships).where(eq(schema.memberships.userId, id)),
+      db.delete(schema.trainingPlans).where(eq(schema.trainingPlans.userId, id)),
+      db.delete(schema.chatMutes).where(eq(schema.chatMutes.userId, id)),
+      db.delete(schema.chatMessages).where(eq(schema.chatMessages.senderId, id)),
+      db.delete(schema.recipes).where(eq(schema.recipes.ownerId, id)),
+      db.delete(schema.paidCustomers).where(eq(schema.paidCustomers.email, email)),
+    ]);
+    // Apaga a conta (session e account são apagados em cascata).
+    await db.delete(user).where(eq(user.id, id));
+
+    await db.insert(schema.adminAuditLog).values({
+      adminId: me.id,
+      adminName: me.name ?? me.email,
+      targetUserId: id,
+      targetEmail: email,
+      action: "conta apagada (todos os dados removidos)",
+    });
+    return c.json({ ok: true });
   });
