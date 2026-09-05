@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
 import { authClient, clearToken } from "../lib/auth";
-import { Home, FileText, Apple, LogOut, Menu, X, ChevronRight, Shield, CreditCard, MessageCircle, Moon } from "lucide-react";
+import { Home, FileText, Apple, LogOut, Menu, X, ChevronRight, Shield, CreditCard, MessageCircle, Moon, Dumbbell } from "lucide-react";
 import { useState } from "react";
 
 // Vídeos vive agora dentro de Conteúdos (separador) — um item a menos no menu.
 const navItems = [
   { path: "/", icon: Home, label: "Início" },
+  { path: "/plano", icon: Dumbbell, label: "O meu plano" },
   { path: "/conteudos", icon: FileText, label: "Conteúdos" },
   { path: "/nutricao", icon: Apple, label: "Nutrição" },
   { path: "/ciclo", icon: Moon, label: "Ciclo" },
