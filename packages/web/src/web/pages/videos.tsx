@@ -1,13 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Play, Plus, X, Search, Heart } from "lucide-react";
 import { authClient, getToken } from "../lib/auth";
 
 const CATEGORIES = ["Todos", "Semana 1", "Semana 2", "Semana 3", "Semana 4", "Aquecimento", "Glúteos", "Core", "Bónus"];
 
-function YouTubeEmbed({ videoId, title }: { videoId: string; title: string }) {
-  const [playing, setPlaying] = useState(false);
+function YouTubeEmbed({ videoId, title, autoOpen = false }: { videoId: string; title: string; autoOpen?: boolean }) {
+  const [playing, setPlaying] = useState(autoOpen);
   const thumb = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
 
   if (playing) {
@@ -47,6 +47,11 @@ export default function VideosPage() {
   })();
   const [filter, setFilter] = useState(initialCat);
   const [search, setSearch] = useState("");
+  // Deep-link para um vídeo específico via ?v=<id> (ex: a partir do plano de treino).
+  const deepVideoId = (() => {
+    const v = new URLSearchParams(window.location.search).get("v");
+    return v ? Number(v) : null;
+  })();
   const [showAdd, setShowAdd] = useState(false);
   const [onlyFavs, setOnlyFavs] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; title: string } | null>(null);
@@ -101,6 +106,13 @@ export default function VideosPage() {
     const matchFav = !onlyFavs || favIds.has(v.id);
     return matchCat && matchSearch && matchFav;
   });
+
+  // Se veio um ?v=<id>, faz scroll até esse vídeo assim que a lista carrega.
+  useEffect(() => {
+    if (!deepVideoId || videos.length === 0) return;
+    const el = document.getElementById(`video-${deepVideoId}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [deepVideoId, videos.length]);
 
   // Extract YouTube ID from URL or raw ID
   const extractYtId = (input: string) => {
@@ -162,8 +174,8 @@ export default function VideosPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((v: any) => (
-            <div key={v.id} className="rounded-2xl overflow-hidden shadow-sm group" style={{ background: "var(--white)" }}>
-              <YouTubeEmbed videoId={v.youtubeId} title={v.title} />
+            <div key={v.id} id={`video-${v.id}`} className="rounded-2xl overflow-hidden shadow-sm group" style={{ background: "var(--white)", outline: v.id === deepVideoId ? "2px solid var(--orange)" : "none" }}>
+              <YouTubeEmbed videoId={v.youtubeId} title={v.title} autoOpen={v.id === deepVideoId} />
               <div className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
