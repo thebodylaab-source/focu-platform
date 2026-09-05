@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getToken } from "../lib/auth";
-import { Shield, Users, CheckCircle, Clock, Crown, Search, History, ChevronLeft, ChevronRight, BarChart3, Send, Bell } from "lucide-react";
+import { Shield, Users, CheckCircle, Clock, Crown, Search, History, ChevronLeft, ChevronRight, BarChart3, Send, Bell, Dumbbell } from "lucide-react";
+import { TrainingPlanEditor } from "../components/training-plan-editor";
 
 const ROLE_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   admin: { label: "Admin", color: "#7C3AED", icon: <Crown size={14} /> },
@@ -21,6 +22,7 @@ export default function AdminPage() {
   const [showMetrics, setShowMetrics] = useState(false);
   const [broadcast, setBroadcast] = useState({ title: "", body: "" });
   const [broadcastState, setBroadcastState] = useState<"idle" | "sending" | string>("idle");
+  const [planUser, setPlanUser] = useState<{ id: string; name: string } | null>(null);
 
   const { data: metricsData } = useQuery({
     queryKey: ["admin-metrics"],
@@ -335,6 +337,16 @@ export default function AdminPage() {
 
                   {/* Role change buttons */}
                   <div className="flex gap-2 shrink-0">
+                    {u.role !== "admin" && (
+                      <button
+                        onClick={() => setPlanUser({ id: u.id, name: u.name })}
+                        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl font-semibold cursor-pointer transition-opacity hover:opacity-80"
+                        style={{ background: "var(--peach)", color: "var(--orange)" }}
+                        title="Plano de treino personalizado"
+                      >
+                        <Dumbbell size={13} /> Plano
+                      </button>
+                    )}
                     {u.role === "pending" && (
                       <button
                         disabled={loadingId === u.id}
@@ -412,6 +424,11 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Editor de plano de treino */}
+      {planUser && (
+        <TrainingPlanEditor userId={planUser.id} userName={planUser.name} onClose={() => setPlanUser(null)} />
       )}
     </div>
   );

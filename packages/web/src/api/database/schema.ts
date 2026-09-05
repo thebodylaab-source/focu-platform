@@ -257,3 +257,17 @@ export const memberships = sqliteTable("memberships", {
   expiresAt: integer("expires_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
+
+// Plano de treino personalizado por aluna (escrito pelo admin).
+// A aluna continua com acesso a tudo; isto é um plano extra só para ela.
+// "days" é um JSON: [{ name, exercises: [{ name, sets, reps, notes, videoId? }] }]
+export const trainingPlans = sqliteTable("training_plans", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().unique(), // um plano por aluna
+  title: text("title").notNull().default("O teu plano"),
+  days: text("days").notNull().default("[]"),
+  notes: text("notes"), // nota geral opcional
+  updatedBy: text("updated_by"), // id do admin que editou
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});

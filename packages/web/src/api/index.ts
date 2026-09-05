@@ -15,6 +15,7 @@ import { progressRoute } from "./routes/progress";
 import { pushRoute } from "./routes/push";
 import { cycleRoute } from "./routes/cycle";
 import { chatRoute } from "./routes/chat";
+import { trainingRoute } from "./routes/training";
 
 // CORS restrito às origens web conhecidas (+ localhost em dev). Apps nativas
 // não passam por CORS (é uma proteção de browser), por isso não são afetadas.
@@ -45,7 +46,8 @@ const apiApp = new Hono()
   .route("/progress", progressRoute)
   .route("/push", pushRoute)
   .route("/cycle", cycleRoute)
-  .route("/chat", chatRoute);
+  .route("/chat", chatRoute)
+  .route("/training", trainingRoute);
 
 // Root app
 const app = new Hono()
