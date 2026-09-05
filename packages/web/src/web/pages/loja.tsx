@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { ShoppingBag, Play, FileText, Salad, ChevronRight, Star, CheckCircle2, MessageCircle } from "lucide-react";
 
 const PAYMENT_LINK = "https://buy.stripe.com/14AfZj0jY7mZ5HB4dMfjG00";
-const WHATSAPP_LINK = "https://wa.me/351913159587?text=Ol%C3%A1%2C+tenho+d%C3%BAvidas+sobre+o+FO.CU+%F0%9F%8D%91";
+const WHATSAPP_LINK = "https://wa.me/351916808806?text=Ol%C3%A1%2C+tenho+d%C3%BAvidas+sobre+o+FO.CU+%F0%9F%8D%91";
 
 const FEATURES = [
   { icon: <Play size={18} />, label: "Vídeos do desafio", desc: "4 semanas de treinos guiados passo a passo" },
