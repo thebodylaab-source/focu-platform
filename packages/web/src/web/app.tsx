@@ -15,6 +15,7 @@ import ReporPasswordPage from "./pages/repor-password";
 import CicloPage from "./pages/ciclo";
 import MensalidadePage from "./pages/mensalidade";
 import ChatPage from "./pages/chat";
+import PlanoPage from "./pages/plano";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,11 @@ export default function App() {
         <Route path="/videos">
           <ProtectedRoute>
             <AppLayout><VideosPage /></AppLayout>
+          </ProtectedRoute>
+        </Route>
+        <Route path="/plano">
+          <ProtectedRoute>
+            <AppLayout><PlanoPage /></AppLayout>
           </ProtectedRoute>
         </Route>
         <Route path="/conteudos">
