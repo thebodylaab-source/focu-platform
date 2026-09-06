@@ -148,11 +148,14 @@ export const paidCustomers = sqliteTable("paid_customers", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),
   stripeCustomerId: text("stripe_customer_id"),
-  plan: text("plan"), // mensal-recorrente | mensal-avulso
+  plan: text("plan"), // mensal-recorrente | mensal-avulso | manual
   paidAt: integer("paid_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
   // Fim do prazo pago. NULL = sem expiração (legado / vitalício). Quando passa,
   // a reconciliação despromove o membro para pendente.
   expiresAt: integer("expires_at", { mode: "timestamp" }),
+  // Valor pago em cêntimos (para o resumo de receita) e método de pagamento.
+  amount: integer("amount"), // cêntimos; null = desconhecido
+  method: text("method"), // stripe | mbway | transferencia | dinheiro | outro
 });
 
 // Ciclo menstrual — usado para dar orientação diária de treino e nutrição

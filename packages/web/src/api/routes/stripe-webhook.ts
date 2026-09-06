@@ -47,7 +47,7 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
   //  - avulso: estende +1 mês a partir do prazo atual
   const grantAccess = async (
     email: string | null | undefined,
-    opts: { stripeCustomerId?: string | null; recurring?: boolean; periodEnd?: Date | null } = {}
+    opts: { stripeCustomerId?: string | null; recurring?: boolean; periodEnd?: Date | null; amount?: number | null } = {}
   ) => {
     const e = norm(email);
     if (!e) return;
@@ -57,13 +57,14 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
     const expiresAt = opts.recurring
       ? (opts.periodEnd ?? new Date(now.getTime() + 32 * 24 * 60 * 60 * 1000)) // fallback ~1 mês + folga
       : extendOneTime(now, current?.expiresAt);
+    const amount = opts.amount != null ? opts.amount : current?.amount ?? null;
 
     await db
       .insert(schema.paidCustomers)
-      .values({ email: e, stripeCustomerId: opts.stripeCustomerId ?? null, plan, paidAt: now, expiresAt })
+      .values({ email: e, stripeCustomerId: opts.stripeCustomerId ?? null, plan, paidAt: now, expiresAt, amount, method: "stripe" })
       .onConflictDoUpdate({
         target: schema.paidCustomers.email,
-        set: { stripeCustomerId: opts.stripeCustomerId ?? current?.stripeCustomerId ?? null, plan, paidAt: now, expiresAt },
+        set: { stripeCustomerId: opts.stripeCustomerId ?? current?.stripeCustomerId ?? null, plan, paidAt: now, expiresAt, amount, method: "stripe" },
       });
     const [existing] = await db.select().from(user).where(eq(user.email, e));
     if (existing && existing.role !== "admin") {
@@ -104,6 +105,7 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
         await grantAccess(s.customer_email ?? s.customer_details?.email, {
           stripeCustomerId: typeof s.customer === "string" ? s.customer : null,
           recurring, periodEnd,
+          amount: typeof s.amount_total === "number" ? s.amount_total : null,
         });
       }
       break;
@@ -116,6 +118,7 @@ export const stripeWebhookRoute = new Hono().post("/", async (c) => {
       await grantAccess(inv.customer_email, {
         stripeCustomerId: typeof inv.customer === "string" ? inv.customer : null,
         recurring: true, periodEnd,
+        amount: typeof inv.amount_paid === "number" ? inv.amount_paid : null,
       });
       break;
     }
