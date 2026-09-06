@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../database";
 import * as schema from "../database/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { requireMember, requireAdmin } from "../middleware/auth";
 
 // Valida/normaliza a estrutura de dias vinda do admin.
@@ -28,6 +28,37 @@ export const trainingRoute = new Hono()
     const user = c.get("user")!;
     const [plan] = await db.select().from(schema.trainingPlans).where(eq(schema.trainingPlans.userId, user.id));
     return c.json({ plan: plan ?? null }, 200);
+  })
+  // A aluna vê os SEUS registos de carga (todos, para o plano agrupar por exercício).
+  .get("/logs", requireMember, async (c) => {
+    const user = c.get("user")!;
+    const rows = await db.select().from(schema.exerciseLogs)
+      .where(eq(schema.exerciseLogs.userId, user.id))
+      .orderBy(desc(schema.exerciseLogs.logDate), desc(schema.exerciseLogs.id));
+    return c.json({ logs: rows }, 200);
+  })
+  // A aluna regista uma carga para um exercício.
+  .post("/log", requireMember, async (c) => {
+    const user = c.get("user")!;
+    const body = await c.req.json().catch(() => ({}));
+    const exercise = String(body?.exercise ?? "").trim().slice(0, 160);
+    if (!exercise) return c.json({ error: "Exercício em falta" }, 400);
+    const weight = body?.weight != null && !Number.isNaN(Number(body.weight)) ? Number(body.weight) : null;
+    const reps = body?.reps != null ? String(body.reps).slice(0, 20) : null;
+    const notes = body?.notes != null ? String(body.notes).slice(0, 300) : null;
+    const logDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body?.logDate)) ? String(body.logDate) : new Date().toISOString().split("T")[0];
+    const [row] = await db.insert(schema.exerciseLogs)
+      .values({ userId: user.id, exercise, weight, reps, notes, logDate, createdAt: new Date() })
+      .returning();
+    return c.json({ log: row }, 201);
+  })
+  // A aluna apaga um registo seu.
+  .delete("/log/:id", requireMember, async (c) => {
+    const user = c.get("user")!;
+    const id = parseInt(c.req.param("id"));
+    await db.delete(schema.exerciseLogs)
+      .where(and(eq(schema.exerciseLogs.id, id), eq(schema.exerciseLogs.userId, user.id)));
+    return c.json({ ok: true }, 200);
   })
   // Admin lê o plano de uma aluna.
   .get("/:userId", requireAdmin, async (c) => {

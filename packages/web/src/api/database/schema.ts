@@ -274,3 +274,18 @@ export const trainingPlans = sqliteTable("training_plans", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
+
+// Registo de carga por exercício (a aluna acompanha a progressão ao longo dos treinos).
+// Chaveado pelo nome do exercício (os exercícios vivem no JSON do plano).
+export const exerciseLogs = sqliteTable("exercise_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  exercise: text("exercise").notNull(), // nome do exercício
+  weight: real("weight"), // kg
+  reps: text("reps"),
+  notes: text("notes"),
+  logDate: text("log_date").notNull(), // YYYY-MM-DD
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+}, (t) => ({
+  userExIdx: index("exercise_logs_user_ex_idx").on(t.userId, t.exercise),
+}));
