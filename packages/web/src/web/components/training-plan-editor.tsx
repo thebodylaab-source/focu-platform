@@ -1,31 +1,37 @@
 import { useEffect, useState } from "react";
 import { getToken } from "../lib/auth";
-import { X, Plus, Trash2, GripVertical, Save, Dumbbell } from "lucide-react";
+import { X, Plus, Trash2, GripVertical, Save, Dumbbell, TrendingUp } from "lucide-react";
 
-type Exercise = { name: string; sets: string; reps: string; notes: string; videoId: number | null };
+type Exercise = { name: string; sets: string; reps: string; notes: string; videoId: number | null; videoUrl?: string | null };
 type Day = { name: string; exercises: Exercise[] };
+type Log = { id: number; exercise: string; weight: number | null; reps: string | null; logDate: string };
 
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
-const emptyExercise = (): Exercise => ({ name: "", sets: "", reps: "", notes: "", videoId: null });
+const emptyExercise = (): Exercise => ({ name: "", sets: "", reps: "", notes: "", videoId: null, videoUrl: "" });
 
 export function TrainingPlanEditor({ userId, userName, onClose }: { userId: string; userName: string; onClose: () => void }) {
   const [title, setTitle] = useState("O teu plano");
   const [notes, setNotes] = useState("");
   const [days, setDays] = useState<Day[]>([]);
   const [videos, setVideos] = useState<Array<{ id: number; title: string }>>([]);
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "done" | "error">("idle");
 
   useEffect(() => {
     (async () => {
       try {
-        const [planRes, vidRes] = await Promise.all([
+        const [planRes, vidRes, logsRes] = await Promise.all([
           fetch(`/api/training/${userId}`, { headers: authHeaders() }),
           fetch(`/api/videos`, { headers: authHeaders() }),
+          fetch(`/api/training/${userId}/logs`, { headers: authHeaders() }),
         ]);
         const planData = await planRes.json();
         const vidData = await vidRes.json();
+        const logsData = await logsRes.json();
         setVideos((vidData?.videos ?? []).map((v: any) => ({ id: v.id, title: v.title })));
+        setLogs(logsData?.logs ?? []);
         if (planData?.plan) {
           setTitle(planData.plan.title ?? "O teu plano");
           setNotes(planData.plan.notes ?? "");
@@ -36,6 +42,13 @@ export function TrainingPlanEditor({ userId, userName, onClose }: { userId: stri
       }
     })();
   }, [userId]);
+
+  // Agrupa as cargas registadas pela aluna por exercício (mais recente primeiro).
+  const logsByExercise = logs.reduce((acc, l) => {
+    const k = l.exercise.trim();
+    (acc[k] ??= []).push(l);
+    return acc;
+  }, {} as Record<string, Log[]>);
 
   const addDay = () => setDays((d) => [...d, { name: `Dia ${d.length + 1}`, exercises: [emptyExercise()] }]);
   const removeDay = (i: number) => setDays((d) => d.filter((_, idx) => idx !== i));
@@ -95,6 +108,33 @@ export function TrainingPlanEditor({ userId, userName, onClose }: { userId: stri
                 style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
             </div>
 
+            {/* Cargas registadas pela aluna */}
+            {Object.keys(logsByExercise).length > 0 && (
+              <div className="rounded-2xl p-4" style={{ background: "var(--white)" }}>
+                <button onClick={() => setShowLogs(!showLogs)} className="w-full flex items-center gap-2 cursor-pointer">
+                  <TrendingUp size={16} style={{ color: "var(--orange)" }} />
+                  <span className="font-bold text-sm flex-1 text-left" style={{ color: "var(--black)" }}>Cargas registadas pela aluna</span>
+                  <span className="text-xs" style={{ color: "var(--gray)" }}>{showLogs ? "Fechar" : "Ver"}</span>
+                </button>
+                {showLogs && (
+                  <div className="mt-3 space-y-3">
+                    {Object.entries(logsByExercise).map(([exName, exLogs]) => (
+                      <div key={exName}>
+                        <p className="text-xs font-bold mb-1" style={{ color: "var(--black)" }}>{exName}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {exLogs.slice(0, 10).map((l) => (
+                            <span key={l.id} className="text-[11px] px-2 py-1 rounded-lg" style={{ background: "var(--cream)", color: "var(--gray)" }}>
+                              <strong style={{ color: "var(--black)" }}>{l.weight != null ? `${l.weight}kg` : "—"}</strong>{l.reps ? `×${l.reps}` : ""} · {new Date(l.logDate + "T12:00:00").toLocaleDateString("pt-PT", { day: "numeric", month: "short" })}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Dias */}
             {days.map((day, di) => (
               <div key={di} className="rounded-2xl p-4" style={{ background: "var(--white)" }}>
@@ -131,11 +171,15 @@ export function TrainingPlanEditor({ userId, userName, onClose }: { userId: stri
                         className="w-full px-3 py-2 rounded-lg text-sm border outline-none mb-2"
                         style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
                       <select value={ex.videoId ?? ""} onChange={(e) => setExercise(di, ei, { videoId: e.target.value ? Number(e.target.value) : null })}
-                        className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
+                        className="w-full px-3 py-2 rounded-lg text-sm border outline-none mb-2"
                         style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }}>
-                        <option value="">— Associar vídeo (opcional) —</option>
+                        <option value="">— Associar vídeo da biblioteca (opcional) —</option>
                         {videos.map((v) => <option key={v.id} value={v.id}>{v.title}</option>)}
                       </select>
+                      <input value={ex.videoUrl ?? ""} onChange={(e) => setExercise(di, ei, { videoUrl: e.target.value })}
+                        placeholder="… ou cola um link direto do YouTube"
+                        className="w-full px-3 py-2 rounded-lg text-sm border outline-none"
+                        style={{ background: "var(--white)", borderColor: "var(--gray-lt)", color: "var(--black)" }} />
                     </div>
                   ))}
                   <button onClick={() => addExercise(di)} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold cursor-pointer border-2 border-dashed"
