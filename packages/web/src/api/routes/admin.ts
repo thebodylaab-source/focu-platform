@@ -140,26 +140,56 @@ export const adminRoute = new Hono()
       plan: r.plan,
       paidAt: r.paidAt,
       expiresAt: r.expiresAt,
+      amount: r.amount ?? null, // cêntimos
+      method: r.method ?? null,
       accountRole: roleByEmail.get(r.email.trim().toLowerCase()) ?? null, // null = ainda sem conta
     }));
     return c.json({ customers });
+  })
+  // GET /api/admin/revenue — resumo de receita (Stripe + manual)
+  .get("/revenue", requireAdmin, async (c) => {
+    const me = c.get("user")!;
+    if (me.role !== "admin") return c.json({ error: "Forbidden" }, 403);
+    const rows = await db.select().from(schema.paidCustomers);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    let totalCents = 0, monthCents = 0, withAmount = 0;
+    const byMethod: Record<string, number> = {};
+    for (const r of rows) {
+      const cents = r.amount ?? 0;
+      if (cents > 0) {
+        totalCents += cents;
+        withAmount++;
+        const m = r.method ?? "outro";
+        byMethod[m] = (byMethod[m] ?? 0) + cents;
+        if (r.paidAt && r.paidAt.getTime() >= monthStart) monthCents += cents;
+      }
+    }
+    return c.json({
+      totalCents, monthCents, withAmount, totalRecords: rows.length, byMethod,
+    });
   })
   // POST /api/admin/paid-emails — autoriza um email (pagamento fora da plataforma)
   .post("/paid-emails", requireAdmin, async (c) => {
     const me = c.get("user")!;
     if (me.role !== "admin") return c.json({ error: "Forbidden" }, 403);
-    const body = await c.req.json<{ email?: string; duration?: string }>().catch(() => ({}));
+    const body = await c.req.json<{ email?: string; duration?: string; amount?: number | string; method?: string }>().catch(() => ({}));
     const email = (body?.email ?? "").trim().toLowerCase();
     if (!email || !email.includes("@")) return c.json({ error: "Email inválido" }, 400);
     const now = new Date();
     const lifetime = body?.duration === "lifetime";
     const expiresAt = lifetime ? null : extendOneTime(now, null); // 1 mês por defeito
+    // Valor pago em euros → cêntimos (para o resumo de receita). Opcional.
+    const euros = typeof body?.amount === "string" ? parseFloat(body.amount.replace(",", ".")) : body?.amount;
+    const amount = euros != null && !Number.isNaN(euros) && euros > 0 ? Math.round(euros * 100) : null;
+    const allowedMethods = ["mbway", "transferencia", "dinheiro", "outro"];
+    const method = allowedMethods.includes(String(body?.method)) ? String(body?.method) : "outro";
 
     const [existing] = await db.select().from(schema.paidCustomers).where(eq(schema.paidCustomers.email, email));
     if (existing) {
-      await db.update(schema.paidCustomers).set({ plan: "manual", paidAt: now, expiresAt }).where(eq(schema.paidCustomers.email, email));
+      await db.update(schema.paidCustomers).set({ plan: "manual", paidAt: now, expiresAt, amount, method }).where(eq(schema.paidCustomers.email, email));
     } else {
-      await db.insert(schema.paidCustomers).values({ email, plan: "manual", paidAt: now, expiresAt });
+      await db.insert(schema.paidCustomers).values({ email, plan: "manual", paidAt: now, expiresAt, amount, method });
     }
 
     // Se já existe uma conta com este email e está pendente, ativa-a já.
