@@ -16,6 +16,7 @@ function normalizeDays(input: unknown): string {
           reps: String(e?.reps ?? "").slice(0, 20),
           notes: String(e?.notes ?? "").slice(0, 500),
           videoId: e?.videoId != null && !Number.isNaN(Number(e.videoId)) ? Number(e.videoId) : null,
+          videoUrl: e?.videoUrl ? String(e.videoUrl).slice(0, 300) : null, // link direto do YouTube
         }))
       : [],
   }));
@@ -59,6 +60,14 @@ export const trainingRoute = new Hono()
     await db.delete(schema.exerciseLogs)
       .where(and(eq(schema.exerciseLogs.id, id), eq(schema.exerciseLogs.userId, user.id)));
     return c.json({ ok: true }, 200);
+  })
+  // Admin lê os registos de carga de uma aluna (para acompanhar a evolução).
+  .get("/:userId/logs", requireAdmin, async (c) => {
+    const userId = c.req.param("userId");
+    const rows = await db.select().from(schema.exerciseLogs)
+      .where(eq(schema.exerciseLogs.userId, userId))
+      .orderBy(desc(schema.exerciseLogs.logDate), desc(schema.exerciseLogs.id));
+    return c.json({ logs: rows }, 200);
   })
   // Admin lê o plano de uma aluna.
   .get("/:userId", requireAdmin, async (c) => {

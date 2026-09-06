@@ -4,7 +4,7 @@ import { getToken } from "../lib/auth";
 import { Dumbbell, PlayCircle, StickyNote, Plus, TrendingUp, X, Trash2, Check } from "lucide-react";
 import { Link } from "wouter";
 
-type Exercise = { name: string; sets?: string; reps?: string; notes?: string; videoId?: number | null };
+type Exercise = { name: string; sets?: string; reps?: string; notes?: string; videoId?: number | null; videoUrl?: string | null };
 type Day = { name: string; exercises: Exercise[] };
 type Plan = { title: string; days: string; notes?: string | null; updatedAt?: number } | null;
 type Log = { id: number; exercise: string; weight: number | null; reps: string | null; notes: string | null; logDate: string };
@@ -64,13 +64,19 @@ function ExerciseRow({ ex, logs, onChanged }: { ex: Exercise; logs: Log[]; onCha
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {ex.videoId != null && (
+          {ex.videoUrl ? (
+            <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer">
+              <button className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer" style={{ background: "var(--peach)", color: "var(--orange)" }}>
+                <PlayCircle size={14} /> Vídeo
+              </button>
+            </a>
+          ) : ex.videoId != null ? (
             <Link to={`/videos?v=${ex.videoId}`}>
               <button className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer" style={{ background: "var(--peach)", color: "var(--orange)" }}>
                 <PlayCircle size={14} /> Vídeo
               </button>
             </Link>
-          )}
+          ) : null}
           <button onClick={() => setLogging(!logging)} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg cursor-pointer text-white" style={{ background: "var(--orange)" }}>
             <Plus size={14} /> Carga
           </button>
